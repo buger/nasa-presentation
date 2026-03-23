@@ -38,7 +38,6 @@ jobs:
             --metadata title="Applying NASA, Automotive & Safety-Critical Engineering to Software" \
             --metadata author="Leonid Bugaev" \
             --metadata date="$(date +%Y-%m-%d)" \
-            TABLE_OF_CONTENTS.md \
             research_testing_as_evidence.md \
             research_runtime_monitoring.md \
             research_deployment_safety.md \
