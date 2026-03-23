@@ -1,0 +1,2885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MC/DC + FRET + Lustre: Real-World Middleware Refactoring</title>
+<link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/haskell.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  /* ===== DARK THEME (default / reading mode) ===== */
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --text-bright: #ffffff;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #d29922;
+    --purple: #bc8cff;
+    --pink: #f778ba;
+    --cyan: #39d2c0;
+    --font-scale: 1;
+  }
+
+  /* ===== LIGHT THEME (presentation mode) ===== */
+  :root.light {
+    --bg: #ffffff;
+    --surface: #f6f8fa;
+    --surface2: #eef1f5;
+    --border: #d1d9e0;
+    --text: #1f2328;
+    --text-dim: #656d76;
+    --text-bright: #000000;
+    --accent: #0969da;
+    --green: #1a7f37;
+    --red: #cf222e;
+    --orange: #9a6700;
+    --purple: #8250df;
+    --pink: #bf3989;
+    --cyan: #0a7b6f;
+    --font-scale: 1.15;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+    font-size: calc(16px * var(--font-scale));
+    transition: background 0.3s, color 0.3s;
+  }
+
+  /* ===== PRESENTATION MODE TOGGLE ===== */
+  .mode-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 9999;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.3s;
+    user-select: none;
+    opacity: 0.7;
+  }
+  .mode-toggle:hover { opacity: 1; }
+  .mode-toggle .toggle-icon { font-size: 16px; }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, var(--bg) 0%, var(--surface2) 50%, var(--bg) 100%);
+    padding: calc(80px * var(--font-scale)) 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(88,166,255,0.08) 0%, transparent 70%);
+  }
+  :root.light .hero::before {
+    background: radial-gradient(ellipse at 50% 0%, rgba(9,105,218,0.06) 0%, transparent 70%);
+  }
+  .hero h1 {
+    font-size: calc(2.8em * var(--font-scale));
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+    position: relative;
+  }
+  .hero h1 .hl { color: var(--accent); }
+  .hero .subtitle {
+    font-size: calc(1.2em * var(--font-scale));
+    color: var(--text-dim);
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .hero .badge {
+    display: inline-block;
+    margin-top: 24px;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: calc(0.9em * var(--font-scale));
+    font-weight: 600;
+    position: relative;
+  }
+  .badge-red { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.3); }
+  .badge-green { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+  .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  :root.light .badge-red { background: rgba(207,34,46,0.08); border-color: rgba(207,34,46,0.25); }
+  :root.light .badge-green { background: rgba(26,127,55,0.08); border-color: rgba(26,127,55,0.25); }
+  :root.light .badge-blue { background: rgba(9,105,218,0.08); border-color: rgba(9,105,218,0.25); }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 60px;
+  }
+
+  section {
+    padding: calc(60px * var(--font-scale)) 0;
+    border-bottom: 1px solid var(--border);
+  }
+  section:last-child { border-bottom: none; }
+
+  h2 {
+    font-size: calc(2em * var(--font-scale));
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  h2 .section-num {
+    color: var(--accent);
+    font-weight: 400;
+    font-size: 0.7em;
+    margin-right: 8px;
+  }
+  .section-subtitle {
+    color: var(--text-dim);
+    font-size: calc(1.1em * var(--font-scale));
+    margin-bottom: 32px;
+  }
+
+  h3 {
+    font-size: calc(1.3em * var(--font-scale));
+    font-weight: 700;
+    margin: 36px 0 14px;
+    color: var(--text-bright);
+  }
+
+  p { margin-bottom: 16px; color: var(--text); }
+  strong { color: var(--text-bright); font-weight: 600; }
+
+  /* Code blocks — highlight.js themed */
+  pre {
+    margin: 16px 0 24px;
+    position: relative;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  pre code.hljs {
+    background: var(--surface);
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: calc(0.82em * var(--font-scale));
+    line-height: 1.7;
+    border-radius: 10px;
+  }
+  .code-label {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.65em;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    z-index: 2;
+    background: var(--surface);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  /* Inline code */
+  :not(pre) > code {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--surface);
+    padding: 2px 7px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    font-size: 0.88em;
+    color: var(--cyan);
+  }
+
+  /* Problem/good line highlights via background gradient overlays */
+  .code-problems pre code.hljs {
+    background: var(--surface);
+  }
+
+  /* Side-by-side panels */
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin: 24px 0;
+  }
+  @media (max-width: 900px) {
+    .comparison { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 14px 22px;
+    font-weight: 700;
+    font-size: calc(0.95em * var(--font-scale));
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .panel-header .dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+  }
+  .panel-before .panel-header { background: rgba(248,81,73,0.1); color: var(--red); border-bottom: 1px solid rgba(248,81,73,0.2); }
+  .panel-before .dot { background: var(--red); }
+  .panel-after .panel-header { background: rgba(63,185,80,0.1); color: var(--green); border-bottom: 1px solid rgba(63,185,80,0.2); }
+  .panel-after .dot { background: var(--green); }
+  .panel pre { margin: 0; border: none; border-radius: 0; }
+  .panel pre code.hljs { border-radius: 0; }
+
+  /* Callouts */
+  .callout {
+    border-radius: 10px;
+    padding: 18px 24px;
+    margin: 20px 0;
+    font-size: calc(0.95em * var(--font-scale));
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .callout-icon { font-size: 1.3em; flex-shrink: 0; margin-top: 2px; }
+  .callout-red { background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.2); }
+  .callout-green { background: rgba(63,185,80,0.08); border: 1px solid rgba(63,185,80,0.2); }
+  .callout-blue { background: rgba(88,166,255,0.08); border: 1px solid rgba(88,166,255,0.2); }
+  .callout-orange { background: rgba(210,153,34,0.08); border: 1px solid rgba(210,153,34,0.2); }
+  .callout-purple { background: rgba(188,140,255,0.08); border: 1px solid rgba(188,140,255,0.2); }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0 28px;
+    font-size: calc(0.92em * var(--font-scale));
+  }
+  th {
+    background: var(--surface2);
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 700;
+    color: var(--text-bright);
+    border-bottom: 2px solid var(--border);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:hover td { background: rgba(88,166,255,0.03); }
+  :root.light tr:hover td { background: rgba(9,105,218,0.04); }
+  .check { color: var(--green); font-weight: 700; }
+  .cross { color: var(--red); font-weight: 700; }
+  .warn { color: var(--orange); font-weight: 700; }
+
+  /* Visual flow diagram */
+  .vflow {
+    margin: 24px 0;
+  }
+  .vflow-zone {
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 0;
+    position: relative;
+  }
+  .vflow-zone.green {
+    border: 2px solid rgba(63,185,80,0.4);
+    background: rgba(63,185,80,0.04);
+  }
+  .vflow-zone.red {
+    border: 2px dashed rgba(248,81,73,0.4);
+    background: rgba(248,81,73,0.04);
+  }
+  .vflow-zone-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .vflow-zone.green .vflow-zone-label { color: var(--green); }
+  .vflow-zone.red .vflow-zone-label { color: var(--red); }
+  .vflow-zone-label .zone-dot {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  }
+  .vflow-zone.green .zone-dot { background: var(--green); }
+  .vflow-zone.red .zone-dot { background: var(--red); }
+  .vflow-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: calc(0.88em * var(--font-scale));
+  }
+  .vflow-box {
+    border-radius: 10px;
+    padding: 12px 18px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    text-align: center;
+    min-width: 160px;
+  }
+  .vflow-box.input { border-color: rgba(188,140,255,0.4); color: var(--purple); }
+  .vflow-box.fn { border-color: rgba(63,185,80,0.4); color: var(--green); font-weight: 700; }
+  .vflow-box.output { border-color: rgba(210,153,34,0.4); color: var(--orange); }
+  .vflow-box .box-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.75em;
+    color: var(--text-dim);
+    display: block;
+    margin-top: 2px;
+    font-weight: 400;
+  }
+  .vflow-arrow {
+    color: var(--text-dim);
+    font-size: 1.2em;
+    flex-shrink: 0;
+  }
+  .vflow-connector {
+    text-align: center;
+    padding: 8px 0;
+    color: var(--accent);
+    font-size: 1.4em;
+    opacity: 0.6;
+  }
+  .vflow-connector span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6em;
+    color: var(--text-dim);
+    display: block;
+  }
+  .vflow-exec-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82em;
+    color: var(--text-dim);
+  }
+  .vflow-exec-row .field-name { color: var(--orange); min-width: 190px; }
+  .vflow-exec-row .exec-action { color: var(--text); }
+  .vflow-exec-row .exec-arrow { color: var(--red); margin: 0 4px; }
+  .vflow-note {
+    margin-top: 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85em;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+  .vflow-note strong { color: var(--red); font-style: normal; }
+
+  /* Pipeline grid */
+  .pipeline-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  @media (max-width: 900px) {
+    .pipeline-grid { grid-template-columns: 1fr; }
+  }
+  .pipeline-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .pipeline-col-header {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: center;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+  }
+  .pipeline-col:nth-child(1) .pipeline-col-header { color: var(--green); border-color: rgba(63,185,80,0.3); }
+  .pipeline-col:nth-child(2) .pipeline-col-header { color: var(--purple); border-color: rgba(188,140,255,0.3); }
+  .pipeline-col:nth-child(3) .pipeline-col-header { color: var(--orange); border-color: rgba(210,153,34,0.3); }
+  .pipeline-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-size: calc(0.9em * var(--font-scale));
+  }
+  .pipeline-card .card-title {
+    font-weight: 700;
+    margin-bottom: 4px;
+    font-size: calc(0.92em * var(--font-scale));
+  }
+  .pipeline-col:nth-child(1) .card-title { color: var(--green); }
+  .pipeline-col:nth-child(2) .card-title { color: var(--purple); }
+  .pipeline-col:nth-child(3) .card-title { color: var(--orange); }
+  .pipeline-card .card-desc { color: var(--text-dim); font-size: 0.88em; }
+  .pipeline-arrow-row {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 1.2em;
+    padding: 4px 0;
+  }
+
+  /* Metric cards */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin: 28px 0;
+  }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+  }
+  .metric-card .value {
+    font-size: calc(2.4em * var(--font-scale));
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .metric-card .label {
+    color: var(--text-dim);
+    font-size: calc(0.9em * var(--font-scale));
+    font-weight: 500;
+  }
+  .metric-card.red .value { color: var(--red); }
+  .metric-card.green .value { color: var(--green); }
+  .metric-card.blue .value { color: var(--accent); }
+  .metric-card.orange .value { color: var(--orange); }
+
+  /* FRET requirement blocks */
+  .fret-req {
+    background: var(--surface);
+    border: 1px solid rgba(188,140,255,0.3);
+    border-left: 4px solid var(--purple);
+    border-radius: 0 10px 10px 0;
+    padding: 16px 22px;
+    margin: 14px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: calc(0.85em * var(--font-scale));
+    color: var(--purple);
+  }
+  .fret-req .fret-label {
+    font-weight: 700;
+    color: var(--text-dim);
+    font-size: 0.85em;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* Lustre-specific styling */
+  .lustre-block {
+    background: var(--surface);
+    border: 1px solid rgba(57,210,192,0.3);
+    border-left: 4px solid var(--cyan);
+    border-radius: 0 10px 10px 0;
+    padding: 16px 22px;
+    margin: 14px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: calc(0.85em * var(--font-scale));
+    color: var(--cyan);
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+  .lustre-block .lustre-label {
+    font-weight: 700;
+    color: var(--text-dim);
+    font-size: 0.85em;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* Annotation arrows */
+  .arrow-connector {
+    text-align: center;
+    font-size: 1.8em;
+    color: var(--accent);
+    padding: 4px 0;
+    opacity: 0.5;
+  }
+
+  ul { padding-left: 24px; margin-bottom: 18px; }
+  li { margin-bottom: 8px; }
+  li::marker { color: var(--accent); }
+
+  /* ===== LIGHT MODE overrides for colored backgrounds ===== */
+  :root.light .callout-red { background: rgba(207,34,46,0.06); border-color: rgba(207,34,46,0.2); }
+  :root.light .callout-green { background: rgba(26,127,55,0.06); border-color: rgba(26,127,55,0.2); }
+  :root.light .callout-blue { background: rgba(9,105,218,0.06); border-color: rgba(9,105,218,0.2); }
+  :root.light .callout-orange { background: rgba(154,103,0,0.06); border-color: rgba(154,103,0,0.2); }
+  :root.light .callout-purple { background: rgba(130,80,223,0.06); border-color: rgba(130,80,223,0.2); }
+  :root.light .panel-before .panel-header { background: rgba(207,34,46,0.06); border-color: rgba(207,34,46,0.15); }
+  :root.light .panel-after .panel-header { background: rgba(26,127,55,0.06); border-color: rgba(26,127,55,0.15); }
+  :root.light .fret-req { border-left-color: var(--purple); border-color: rgba(130,80,223,0.25); }
+  :root.light .lustre-block { border-left-color: var(--cyan); border-color: rgba(10,123,111,0.25); }
+  :root.light .vflow-zone.green { border-color: rgba(26,127,55,0.35); background: rgba(26,127,55,0.03); }
+  :root.light .vflow-zone.red { border-color: rgba(207,34,46,0.35); background: rgba(207,34,46,0.03); }
+
+  /* Lustre keyword highlighting for manual blocks */
+  .lk { color: #ff7b72; font-weight: 600; }  /* lustre keywords */
+  .lc { color: #8b949e; font-style: italic; } /* lustre comments */
+  .lt { color: #79c0ff; }                      /* lustre types */
+  .lp { color: #ffa657; }                      /* lustre properties */
+</style>
+</head>
+<body>
+
+<!-- ==================== THEME TOGGLE ==================== -->
+<div class="mode-toggle" id="modeToggle" onclick="toggleTheme()" title="Switch between dark (reading) and light (presentation) modes">
+  <span class="toggle-icon">☀️</span>
+  <span id="modeLabel">Presentation Mode</span>
+</div>
+
+<!-- ==================== HERO ==================== -->
+<div class="hero">
+  <h1>Making Real Code <span class="hl">FRET-Coverable</span></h1>
+  <div class="subtitle">
+    How to refactor a production Go middleware so that MC/DC, FRET, and Lustre can cover 100% of its decision logic
+  </div>
+  <div>
+    <span class="badge badge-red">Before: 30% coverable</span>
+    <span class="badge badge-green">After: 100% coverable</span>
+    <span class="badge badge-blue">Pattern: Decide &rarr; Plan &rarr; Execute</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ==================== SECTION 1: THE PROBLEM ==================== -->
+<section>
+  <h2><span class="section-num">01</span> The Problem</h2>
+  <p class="section-subtitle">A real middleware function where decisions are tangled with side effects</p>
+
+  <p>This is <code>createMiddleware</code> from a Go API gateway. It's ~80 lines of HTTP handler logic with <strong>6 boolean decisions</strong> interleaved with tracing, logging, metrics, and error handling:</p>
+
+  <div style="position:relative">
+    <span class="code-label">Go &mdash; Original (problems highlighted in comments)</span>
+    <pre><code class="language-go">return func(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // DECISION 1: Should we trace? (tangled with span creation)
+        if baseMw := mw.Base(); baseMw != nil {
+            cfg := baseMw.Gw.GetConfig()
+            if cfg.OpenTelemetry.Enabled &amp;&amp; baseMw.Spec.DetailedTracing {
+                ctx, span := baseMw.Gw.TracerProvider.Tracer().Start(r.Context(), mw.Name())
+                setContext(r, ctx)
+                defer func() {
+                    attrs := ctxGetSpanAttributes(r, mw.Name())
+                    if len(attrs) > 0 { span.SetAttributes(attrs...) }
+                    span.End()
+                }()
+            }
+        }
+
+        logger := mw.Base().SetRequestLogger(r)
+
+        // DECISION 2: NewRelic segment (tangled with defer)
+        if txn := newrelic.FromContext(r.Context()); txn != nil {
+            defer txn.StartSegment(mw.Name()).End()
+        }
+
+        // DECISION 3: Instrumentation (repeated 3x throughout function)
+        if instrumentationEnabled {
+            meta = health.Kvs{
+                "from_ip":  request.RealIP(r),
+                "method":   r.Method,
+                "endpoint": r.URL.Path,
+                // ... more fields ...
+            }
+        }
+
+        // DECISION 4: CORS passthrough (early return, skips everything)
+        if mw.Base().Spec.CORS.OptionsPassthrough &amp;&amp; r.Method == "OPTIONS" {
+            next.ServeHTTP(w, r)
+            return
+        }
+
+        err, errCode := mw.ProcessRequest(w, r, mwConf)
+
+        // DECISION 5: Error handling + GoPlugin exception (nested)
+        if err != nil {
+            writeResponse := true
+            if goPlugin, isGoPlugin := actualMW.(*GoPluginMiddleware); isGoPlugin &amp;&amp; goPlugin.handler != nil {
+                writeResponse = false  // GoPlugin already wrote the response
+            }
+            handler := ErrorHandler{mw.Base()}
+            handler.HandleError(w, r, err.Error(), errCode, writeResponse)
+            // ... metrics, logging ...
+            return
+        }
+
+        // ... metrics, logging ...
+        mw.Base().UpdateRequestSession(r)
+
+        // DECISION 6: StatusRespond bypass
+        if errCode != middleware.StatusRespond {
+            next.ServeHTTP(w, r)
+        }
+    })
+}</code></pre>
+  </div>
+
+  <div class="callout callout-red">
+    <span class="callout-icon">&#9888;</span>
+    <div>
+      <strong>6 decisions tangled with side effects.</strong> To test any single boolean decision, you need to mock HTTP handlers, tracing providers, NewRelic, instrumentors, and the full middleware stack. The boolean logic &mdash; the most critical part &mdash; is buried and untestable in isolation.
+    </div>
+  </div>
+
+  <h3>What Can MC/DC and FRET Cover?</h3>
+
+  <table>
+    <thead>
+      <tr><th>Aspect</th><th>Coverable?</th><th>Tool</th><th>Why</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Boolean decision logic</td><td><span class="warn">~30%</span></td><td>MC/DC</td><td>Decisions exist but tangled with effects</td></tr>
+      <tr><td>Side effect ordering</td><td><span class="cross">&times;</span></td><td>Integration tests</td><td>Span before/after process &mdash; not a boolean</td></tr>
+      <tr><td>Data content in metrics</td><td><span class="cross">&times;</span></td><td>Unit tests</td><td>Correct IP, method, path &mdash; not a decision</td></tr>
+      <tr><td>Concurrent safety of mwConf</td><td><span class="cross">&times;</span></td><td>Race detector / TLA+</td><td>Closure-captured state shared across requests</td></tr>
+      <tr><td>Defer ordering</td><td><span class="cross">&times;</span></td><td>Language semantics</td><td>Go runtime behavior &mdash; not modelable</td></tr>
+    </tbody>
+  </table>
+
+  <div class="metrics">
+    <div class="metric-card red"><div class="value">~30%</div><div class="label">FRET Coverage</div></div>
+    <div class="metric-card orange"><div class="value">6+</div><div class="label">Mocks Required</div></div>
+    <div class="metric-card red"><div class="value">80</div><div class="label">Lines in Closure</div></div>
+    <div class="metric-card orange"><div class="value">Mixed</div><div class="label">Logic &amp; Effects</div></div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 2: THE PATTERN ==================== -->
+<section>
+  <h2><span class="section-num">02</span> The Pattern: Decide &rarr; Plan &rarr; Execute</h2>
+  <p class="section-subtitle">Separate what-to-do from how-to-do-it</p>
+
+  <div class="vflow">
+    <!-- FRET BOUNDARY -->
+    <div class="vflow-zone green">
+      <div class="vflow-zone-label"><span class="zone-dot"></span> FRET BOUNDARY (pure, testable, zero side effects)</div>
+      <div class="vflow-row">
+        <div class="vflow-box input">MiddlewareInputs<span class="box-label">struct: all inputs</span></div>
+        <div class="vflow-arrow">&rarr;</div>
+        <div class="vflow-box fn">PlanBeforeProcess()<span class="box-label">pure function</span></div>
+        <div class="vflow-arrow">&rarr;</div>
+        <div class="vflow-box output">MiddlewarePlan<span class="box-label">struct: all outputs</span></div>
+      </div>
+      <div class="vflow-row" style="margin-top: 8px;">
+        <div class="vflow-box input">ProcessResult<span class="box-label">struct: err + code</span></div>
+        <div class="vflow-arrow">&rarr;</div>
+        <div class="vflow-box fn">PlanAfterProcess()<span class="box-label">pure function</span></div>
+        <div class="vflow-arrow">&rarr;</div>
+        <div class="vflow-box output">MiddlewarePlan<span class="box-label">updated plan</span></div>
+      </div>
+    </div>
+
+    <!-- Connector -->
+    <div class="vflow-connector">&darr;<span>MiddlewarePlan struct</span></div>
+
+    <!-- EXECUTION BOUNDARY -->
+    <div class="vflow-zone red">
+      <div class="vflow-zone-label"><span class="zone-dot"></span> EXECUTION BOUNDARY (mechanical, side effects, integration-tested)</div>
+      <div class="vflow-exec-row"><span class="field-name">plan.Trace?</span><span class="exec-arrow">&rarr;</span><span class="exec-action">exec.SetupTracing()</span></div>
+      <div class="vflow-exec-row"><span class="field-name">plan.PassthroughCORS?</span><span class="exec-arrow">&rarr;</span><span class="exec-action">next.ServeHTTP(); return</span></div>
+      <div class="vflow-exec-row"><span class="field-name">plan.WriteError?</span><span class="exec-arrow">&rarr;</span><span class="exec-action">exec.HandleError()</span></div>
+      <div class="vflow-exec-row"><span class="field-name">plan.UpdateSession?</span><span class="exec-arrow">&rarr;</span><span class="exec-action">mw.UpdateRequestSession()</span></div>
+      <div class="vflow-exec-row"><span class="field-name">plan.CallNext?</span><span class="exec-arrow">&rarr;</span><span class="exec-action">next.ServeHTTP()</span></div>
+      <div class="vflow-note">Each line: one field, one action, <strong>no logic</strong>.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 3: THE REFACTORED CODE ==================== -->
+<section>
+  <h2><span class="section-num">03</span> The Refactored Code</h2>
+  <p class="section-subtitle">Layer 1: Pure types and decision functions</p>
+
+  <h3>Data Types &mdash; FRET Glossary Variables</h3>
+
+  <div style="position:relative">
+    <span class="code-label">Go</span>
+    <pre><code class="language-go">// Every field maps to a FRET Glossary Input variable.
+type MiddlewareInputs struct {
+    OTelEnabled       bool
+    DetailedTracing   bool
+    CORSPassthrough   bool
+    RequestMethod     string
+    InstrumentationOn bool
+    HasNewRelicTxn    bool
+}
+
+// Every field maps to a FRET Glossary Output variable.
+type MiddlewarePlan struct {
+    Trace           bool
+    PassthroughCORS bool
+    Process         bool
+    WriteError      bool
+    CallNext        bool
+    UpdateSession   bool
+    Instrument      bool
+}
+
+// Separated because it's only available after ProcessRequest.
+type ProcessResult struct {
+    Err              error
+    ErrCode          int
+    IsGoPlugin       bool
+    PluginHasHandler bool
+}</code></pre>
+  </div>
+
+  <h3>Pure Decision Functions &mdash; FRET Components</h3>
+
+  <div class="comparison">
+    <div class="panel panel-before">
+      <div class="panel-header"><span class="dot"></span> Before: Decisions buried in handler</div>
+      <div style="padding: 16px 20px; font-size: 0.9em; line-height: 1.7;">
+        <p style="margin-bottom: 12px;">Decision logic scattered across <strong>80 lines</strong>, interleaved with span creation, defer, metrics building, error response writing, session updates, and HTTP serving.</p>
+        <p style="margin-bottom: 8px; color: var(--text-dim);">To test <em>"does CORS passthrough skip ProcessRequest?"</em> you need:</p>
+        <ul style="padding-left: 18px; margin-bottom: 12px;">
+          <li><code>httptest.ResponseRecorder</code></li>
+          <li>Mock <code>TracerProvider</code></li>
+          <li>Mock NewRelic context</li>
+          <li>Mock <code>next</code> handler</li>
+          <li>Real <code>Spec</code> with CORS config</li>
+          <li>Instrument package setup</li>
+        </ul>
+        <p style="margin-bottom: 0; color: var(--red); font-weight: 600;">6 mocks for 1 boolean decision.</p>
+      </div>
+    </div>
+    <div class="panel panel-after">
+      <div class="panel-header"><span class="dot"></span> After: Pure functions, zero mocks</div>
+      <div style="padding: 16px 20px; font-size: 0.9em; line-height: 1.7;">
+        <p style="margin-bottom: 8px; color: var(--text-dim);">To test <em>"does CORS passthrough skip ProcessRequest?"</em> you need:</p>
+        <pre style="margin: 12px 0;"><code class="language-go">in := MiddlewareInputs{
+    CORSPassthrough: true,
+    RequestMethod:   "OPTIONS",
+}
+plan := PlanBeforeProcess(in)
+assert(plan.PassthroughCORS == true)
+assert(plan.Process == false)
+assert(plan.CallNext == true)</code></pre>
+        <p style="margin-bottom: 0; color: var(--green); font-weight: 600;">0 mocks. Structs in, struct out. Runs in nanoseconds.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:relative">
+    <span class="code-label">Go &mdash; Pure Decision Functions</span>
+    <pre><code class="language-go">// PlanBeforeProcess: everything knowable before ProcessRequest.
+// Pure function. No side effects. No interfaces. Deterministic.
+func PlanBeforeProcess(in MiddlewareInputs) MiddlewarePlan {
+    plan := MiddlewarePlan{
+        Instrument: in.InstrumentationOn,
+        Trace:      in.OTelEnabled &amp;&amp; in.DetailedTracing,  // Decision 1
+    }
+
+    plan.PassthroughCORS = in.CORSPassthrough &amp;&amp;
+        in.RequestMethod == "OPTIONS"                       // Decision 4
+    plan.Process = !plan.PassthroughCORS
+
+    if plan.PassthroughCORS {
+        plan.CallNext = true
+        plan.WriteError = false
+        plan.UpdateSession = false
+    }
+
+    return plan
+}
+
+// PlanAfterProcess: what to do with the ProcessRequest result.
+// Pure function. Only called when plan.Process == true.
+func PlanAfterProcess(plan MiddlewarePlan, result ProcessResult) MiddlewarePlan {
+    hasError := result.Err != nil
+
+    if hasError {
+        // Decision 5: GoPlugin suppresses error response write
+        plan.WriteError = !(result.IsGoPlugin &amp;&amp; result.PluginHasHandler)
+        plan.CallNext = false
+        plan.UpdateSession = false
+    } else {
+        plan.WriteError = false
+        // Decision 6: StatusRespond bypass
+        plan.CallNext = result.ErrCode != middleware.StatusRespond
+        plan.UpdateSession = true
+    }
+
+    return plan
+}</code></pre>
+  </div>
+
+  <h3>The Orchestrator &mdash; Zero Decision Logic</h3>
+
+  <div style="position:relative">
+    <span class="code-label">Go &mdash; Orchestrator</span>
+    <pre><code class="language-go">// Inside the HTTP handler closure. No decisions — just wiring.
+inputs := MiddlewareInputs{
+    OTelEnabled:       cfg.OpenTelemetry.Enabled,
+    DetailedTracing:   baseMw.Spec.DetailedTracing,
+    CORSPassthrough:   baseMw.Spec.CORS.OptionsPassthrough,
+    RequestMethod:     r.Method,
+    InstrumentationOn: instrumentationEnabled,
+    HasNewRelicTxn:    newrelic.FromContext(r.Context()) != nil,
+}
+
+// DECIDE (pure, tested by FRET + MC/DC)
+plan := PlanBeforeProcess(inputs)
+exec := NewExecutor(mw, mwConf, r)
+
+// EXECUTE (mechanical — each line is one plan field, one action)
+if plan.Trace      { exec.SetupTracing(r); defer exec.FinalizeTracing(r) }
+if plan.Instrument { meta = exec.RecordMetrics(r) }
+if plan.PassthroughCORS { next.ServeHTTP(w, r); return }
+
+// Process request
+procErr, errCode := mw.ProcessRequest(w, r, mwConf)
+
+// DECIDE again (pure, tested by FRET + MC/DC)
+plan = PlanAfterProcess(plan, ProcessResult{
+    Err: procErr, ErrCode: errCode,
+    IsGoPlugin:       isGoPluginMiddleware(actualMW),
+    PluginHasHandler: goPluginHasHandler(actualMW),
+})
+
+// EXECUTE results (mechanical — no branching logic)
+if plan.WriteError    { exec.HandleError(w, r, procErr, errCode, true) }
+if plan.UpdateSession { mw.Base().UpdateRequestSession(r) }
+if plan.CallNext      { next.ServeHTTP(w, r) }</code></pre>
+  </div>
+</section>
+
+<!-- ==================== SECTION 4: FRET COVERAGE ==================== -->
+<section>
+  <h2><span class="section-num">04</span> FRET Requirements</h2>
+  <p class="section-subtitle">7 FRETish requirements cover 100% of the decision logic</p>
+
+  <h3>FRET Variable Glossary</h3>
+
+  <table>
+    <thead>
+      <tr><th>Variable</th><th>FRET Role</th><th>Type</th><th>Go Mapping</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>otel_enabled</code></td><td>Input</td><td>boolean</td><td><code>MiddlewareInputs.OTelEnabled</code></td></tr>
+      <tr><td><code>detailed_tracing</code></td><td>Input</td><td>boolean</td><td><code>MiddlewareInputs.DetailedTracing</code></td></tr>
+      <tr><td><code>cors_passthrough</code></td><td>Input</td><td>boolean</td><td><code>MiddlewareInputs.CORSPassthrough</code></td></tr>
+      <tr><td><code>request_method</code></td><td>Input</td><td>string</td><td><code>MiddlewareInputs.RequestMethod</code></td></tr>
+      <tr><td><code>process_error</code></td><td>Input</td><td>boolean</td><td><code>ProcessResult.Err != nil</code></td></tr>
+      <tr><td><code>error_code</code></td><td>Input</td><td>integer</td><td><code>ProcessResult.ErrCode</code></td></tr>
+      <tr><td><code>is_go_plugin</code></td><td>Input</td><td>boolean</td><td><code>ProcessResult.IsGoPlugin</code></td></tr>
+      <tr><td><code>plugin_has_handler</code></td><td>Input</td><td>boolean</td><td><code>ProcessResult.PluginHasHandler</code></td></tr>
+      <tr style="border-top: 2px solid var(--accent)"><td><code>trace</code></td><td>Output</td><td>boolean</td><td><code>MiddlewarePlan.Trace</code></td></tr>
+      <tr><td><code>passthrough_cors</code></td><td>Output</td><td>boolean</td><td><code>MiddlewarePlan.PassthroughCORS</code></td></tr>
+      <tr><td><code>write_error</code></td><td>Output</td><td>boolean</td><td><code>MiddlewarePlan.WriteError</code></td></tr>
+      <tr><td><code>call_next</code></td><td>Output</td><td>boolean</td><td><code>MiddlewarePlan.CallNext</code></td></tr>
+      <tr><td><code>update_session</code></td><td>Output</td><td>boolean</td><td><code>MiddlewarePlan.UpdateSession</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>FRETish Requirements</h3>
+
+  <div class="fret-req">
+    <span class="fret-label">R1 &mdash; CORS passthrough</span>
+    When <strong>cors_passthrough</strong> is true &amp; <strong>request_method</strong> = "OPTIONS",<br>
+    PlanBeforeProcess shall immediately satisfy <strong>passthrough_cors</strong> = true &amp; <strong>call_next</strong> = true
+  </div>
+  <div class="fret-req">
+    <span class="fret-label">R2 &mdash; Error blocks forwarding</span>
+    When <strong>process_error</strong> is true,<br>
+    PlanAfterProcess shall immediately satisfy <strong>call_next</strong> = false
+  </div>
+  <div class="fret-req">
+    <span class="fret-label">R3 &mdash; Error triggers response</span>
+    When <strong>process_error</strong> is true &amp; (<strong>is_go_plugin</strong> = false | <strong>plugin_has_handler</strong> = false),<br>
+    PlanAfterProcess shall immediately satisfy <strong>write_error</strong> = true
+  </div>
+  <div class="fret-req">
+    <span class="fret-label">R4 &mdash; GoPlugin suppresses response</span>
+    When <strong>process_error</strong> is true &amp; <strong>is_go_plugin</strong> is true &amp; <strong>plugin_has_handler</strong> is true,<br>
+    PlanAfterProcess shall immediately satisfy <strong>write_error</strong> = false
+  </div>
+  <div class="fret-req">
+    <span class="fret-label">R5 &mdash; StatusRespond bypass</span>
+    When <strong>process_error</strong> is false &amp; <strong>error_code</strong> = StatusRespond,<br>
+    PlanAfterProcess shall immediately satisfy <strong>call_next</strong> = false
+  </div>
+  <div class="fret-req">
+    <span class="fret-label">R6 &mdash; Happy path</span>
+    When <strong>process_error</strong> is false &amp; <strong>error_code</strong> != StatusRespond,<br>
+    PlanAfterProcess shall immediately satisfy <strong>call_next</strong> = true &amp; <strong>update_session</strong> = true
+  </div>
+  <div class="fret-req">
+    <span class="fret-label">R7 &mdash; Tracing</span>
+    When <strong>otel_enabled</strong> is true &amp; <strong>detailed_tracing</strong> is true,<br>
+    PlanBeforeProcess shall immediately satisfy <strong>trace</strong> = true
+  </div>
+</section>
+
+<!-- ==================== SECTION 5: MC/DC TESTS ==================== -->
+<section>
+  <h2><span class="section-num">05</span> MC/DC Test Tables</h2>
+  <p class="section-subtitle">Table-driven unit tests with zero mocks</p>
+
+  <h3>PlanBeforeProcess &mdash; Trace Decision</h3>
+  <p><code>OTelEnabled &amp;&amp; DetailedTracing</code> &mdash; 2 conditions, 3 MC/DC tests:</p>
+
+  <table>
+    <thead><tr><th>#</th><th>OTelEnabled</th><th>DetailedTracing</th><th>Trace</th><th>Proves</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><span class="check">T</span></td><td><span class="check">T</span></td><td><span class="check">true</span></td><td>Baseline</td></tr>
+      <tr><td>2</td><td><strong style="color:var(--red)">F</strong></td><td><span class="check">T</span></td><td><span class="cross">false</span></td><td>OTelEnabled independently matters</td></tr>
+      <tr><td>3</td><td><span class="check">T</span></td><td><strong style="color:var(--red)">F</strong></td><td><span class="cross">false</span></td><td>DetailedTracing independently matters</td></tr>
+    </tbody>
+  </table>
+
+  <h3>PlanBeforeProcess &mdash; CORS Decision</h3>
+  <p><code>CORSPassthrough &amp;&amp; RequestMethod == "OPTIONS"</code> &mdash; 2 conditions, 3 MC/DC tests:</p>
+
+  <table>
+    <thead><tr><th>#</th><th>CORSPassthrough</th><th>Method</th><th>PassthroughCORS</th><th>CallNext</th><th>Process</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><span class="check">T</span></td><td>OPTIONS</td><td><span class="check">true</span></td><td><span class="check">true</span></td><td><span class="cross">false</span></td></tr>
+      <tr><td>2</td><td><span class="check">T</span></td><td><strong style="color:var(--red)">GET</strong></td><td><span class="cross">false</span></td><td>&mdash;</td><td><span class="check">true</span></td></tr>
+      <tr><td>3</td><td><strong style="color:var(--red)">F</strong></td><td>OPTIONS</td><td><span class="cross">false</span></td><td>&mdash;</td><td><span class="check">true</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>PlanAfterProcess &mdash; Error + GoPlugin Decision</h3>
+
+  <table>
+    <thead><tr><th>#</th><th>Err</th><th>IsGoPlugin</th><th>HasHandler</th><th>WriteError</th><th>CallNext</th><th>Proves</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><span class="cross">nil</span></td><td>&mdash;</td><td>&mdash;</td><td><span class="cross">false</span></td><td><span class="check">true</span></td><td>Happy path (R6)</td></tr>
+      <tr><td>2</td><td><span class="cross">nil</span></td><td>&mdash;</td><td>&mdash;</td><td><span class="cross">false</span></td><td><span class="cross">false</span></td><td>StatusRespond bypass (R5)</td></tr>
+      <tr><td>3</td><td><strong style="color:var(--red)">err</strong></td><td>F</td><td>&mdash;</td><td><span class="check">true</span></td><td><span class="cross">false</span></td><td>Error writes response (R3)</td></tr>
+      <tr><td>4</td><td><strong style="color:var(--red)">err</strong></td><td><span class="check">T</span></td><td><span class="check">T</span></td><td><span class="cross">false</span></td><td><span class="cross">false</span></td><td>GoPlugin suppresses (R4)</td></tr>
+      <tr><td>5</td><td><strong style="color:var(--red)">err</strong></td><td><span class="check">T</span></td><td><strong style="color:var(--red)">F</strong></td><td><span class="check">true</span></td><td><span class="cross">false</span></td><td>HasHandler independence pair</td></tr>
+    </tbody>
+  </table>
+
+  <h3>The Go Test Code</h3>
+
+  <div style="position:relative">
+    <span class="code-label">Go &mdash; Tests</span>
+    <pre><code class="language-go">func TestPlanBeforeProcess(t *testing.T) {
+    tests := []struct {
+        name   string
+        in     MiddlewareInputs
+        expect MiddlewarePlan
+    }{
+        // MC/DC for Trace: OTelEnabled &amp;&amp; DetailedTracing (3 tests)
+        {"trace: both enabled",
+            MiddlewareInputs{OTelEnabled: true, DetailedTracing: true},
+            MiddlewarePlan{Trace: true, Process: true}},
+        {"trace: otel disabled",
+            MiddlewareInputs{OTelEnabled: false, DetailedTracing: true},
+            MiddlewarePlan{Trace: false, Process: true}},
+        {"trace: tracing disabled",
+            MiddlewareInputs{OTelEnabled: true, DetailedTracing: false},
+            MiddlewarePlan{Trace: false, Process: true}},
+
+        // MC/DC for CORS: CORSPassthrough &amp;&amp; Method==OPTIONS (3 tests)
+        {"cors: passthrough + OPTIONS",
+            MiddlewareInputs{CORSPassthrough: true, RequestMethod: "OPTIONS"},
+            MiddlewarePlan{PassthroughCORS: true, CallNext: true}},
+        {"cors: passthrough + GET",
+            MiddlewareInputs{CORSPassthrough: true, RequestMethod: "GET"},
+            MiddlewarePlan{Process: true}},
+        {"cors: no passthrough + OPTIONS",
+            MiddlewareInputs{RequestMethod: "OPTIONS"},
+            MiddlewarePlan{Process: true}},
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got := PlanBeforeProcess(tt.in)
+            assert.Equal(t, tt.expect, got)
+        })
+    }
+}
+
+func TestPlanAfterProcess(t *testing.T) {
+    base := MiddlewarePlan{Process: true, Instrument: true}
+
+    tests := []struct {
+        name   string
+        result ProcessResult
+        expect MiddlewarePlan
+    }{
+        // R6: happy path
+        {"no error, normal code",
+            ProcessResult{ErrCode: 200},
+            MiddlewarePlan{Process: true, Instrument: true,
+                CallNext: true, UpdateSession: true}},
+
+        // R5: StatusRespond bypass
+        {"no error, StatusRespond",
+            ProcessResult{ErrCode: middleware.StatusRespond},
+            MiddlewarePlan{Process: true, Instrument: true,
+                CallNext: false, UpdateSession: true}},
+
+        // R2 + R3: error, not go plugin
+        {"error, not go plugin",
+            ProcessResult{Err: errors.New("fail"), ErrCode: 500},
+            MiddlewarePlan{Process: true, Instrument: true,
+                WriteError: true}},
+
+        // R4: GoPlugin suppresses response write
+        {"error, go plugin with handler",
+            ProcessResult{Err: errors.New("fail"), ErrCode: 500,
+                IsGoPlugin: true, PluginHasHandler: true},
+            MiddlewarePlan{Process: true, Instrument: true}},
+
+        // MC/DC: PluginHasHandler independence pair
+        {"error, go plugin WITHOUT handler",
+            ProcessResult{Err: errors.New("fail"), ErrCode: 500,
+                IsGoPlugin: true, PluginHasHandler: false},
+            MiddlewarePlan{Process: true, Instrument: true,
+                WriteError: true}},
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got := PlanAfterProcess(base, tt.result)
+            assert.Equal(t, tt.expect, got)
+        })
+    }
+}</code></pre>
+  </div>
+</section>
+
+<!-- ==================== SECTION 6: LUSTRE CONNECTION ==================== -->
+<section>
+  <h2><span class="section-num">06</span> The Lustre Connection</h2>
+  <p class="section-subtitle">How the pure decision functions map to Lustre for formal verification via Kind 2</p>
+
+  <p>Once decisions are pure functions with typed inputs and outputs, they can be expressed as <strong>Lustre nodes with contracts</strong> &mdash; verified by Kind 2 for <em>all possible inputs</em>, not just test cases.</p>
+
+  <h3>Who does what at NASA?</h3>
+
+  <p>This isn't one person doing everything. At NASA it's a <strong>multi-team pipeline</strong>, and different engineers use completely different tools:</p>
+
+  <table>
+    <thead><tr><th>Role</th><th>What they do</th><th>Tools</th><th>Uses FRET?</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Requirements engineers</strong></td><td>Write requirements in structured English</td><td>FRET &rarr; contracts (CoCoSpec)</td><td>&#10003; Primary users</td></tr>
+      <tr><td><strong>GN&amp;C engineers</strong><br><span style="color:var(--text-dim); font-size:0.85em;">Guidance, Navigation &amp; Control</span></td><td>Design control algorithms visually &mdash; "given this sensor reading, what thrust vector?"</td><td>Simulink (visual) &rarr; Lustre (auto-generated)</td><td>Receive FRET requirements as their spec</td></tr>
+      <tr><td><strong>Flight software engineers</strong></td><td>Write code that runs on spacecraft (Mars rovers, Orion, JWST)</td><td>Hand-written C/C++, JPL "Power of 10" rules</td><td>Receive FRET requirements as their implementation spec</td></tr>
+      <tr><td><strong>IV&amp;V engineers</strong><br><span style="color:var(--text-dim); font-size:0.85em;">Independent Verification &amp; Validation</span></td><td>Verify that implementation matches requirements</td><td>Kind 2 + Lustre models vs. FRET contracts</td><td>&#10003; Primary power users</td></tr>
+    </tbody>
+  </table>
+
+  <h3>How requirements flow: SRS to FRET</h3>
+
+  <p>NASA doesn&rsquo;t use Jira tickets. They use formal <strong>Software Requirements Specifications (SRS)</strong> &mdash; documents where every requirement has a unique ID, traceable to design, code, and tests.</p>
+
+  <div class="comparison">
+    <div class="panel panel-before">
+      <div class="panel-header"><span class="dot"></span> Traditional SRS (ambiguous)</div>
+      <div style="padding: 16px 20px; font-size: 0.9em; line-height: 1.7;">
+        <p style="margin-bottom: 10px; font-style: italic;">&ldquo;The system shall enter safe mode upon detection of anomalous sensor readings.&rdquo;</p>
+        <ul style="padding-left: 18px; margin-bottom: 0;">
+          <li>What&rsquo;s &ldquo;anomalous&rdquo;?</li>
+          <li>How fast? Immediately? Within 100ms?</li>
+          <li>Which sensor? All of them?</li>
+          <li>Developer <strong>interprets, asks questions, makes assumptions</strong></li>
+        </ul>
+      </div>
+    </div>
+    <div class="panel panel-after" style="border-color: var(--green)">
+      <div class="panel-header"><span class="dot"></span> FRET requirement (precise)</div>
+      <div style="padding: 16px 20px; font-size: 0.9em; line-height: 1.7;">
+        <p style="margin-bottom: 10px; font-style: italic;">&ldquo;When sensor_A_value &gt; threshold, the FlightController shall immediately satisfy mode = SAFE_MODE.&rdquo;</p>
+        <ul style="padding-left: 18px; margin-bottom: 0;">
+          <li>Which variable, what condition, what timing, what output &mdash; all explicit</li>
+          <li>Developer <strong>implements directly</strong> &mdash; inputs and outputs are named</li>
+          <li>Tester derives MC/DC cases directly from the conditions</li>
+          <li>Kind 2 proves it formally. Copilot monitors it at runtime.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-blue">
+    <span class="callout-icon">&#8505;</span>
+    <div>
+      <strong>FRET augments the SRS, it doesn&rsquo;t replace it.</strong> The SRS remains the authoritative document (hundreds of pages: functional, interface, safety, design constraints, quality attributes). Only the behavioral &ldquo;shall&rdquo; statements with clear input/output/timing get formalized in FRET (~40-60% of functional requirements, most safety requirements). Design constraints (&ldquo;shall use C99&rdquo;), quality attributes (&ldquo;shall be maintainable&rdquo;), and interface specs stay as traditional SRS text.
+    </div>
+  </div>
+
+  <div class="callout callout-purple">
+    <span class="callout-icon">&#9733;</span>
+    <div>
+      <strong>The &ldquo;questions back&rdquo; loop &mdash; arguably the most valuable part.</strong> Translating SRS &rarr; FRETish forces the requirements engineer to resolve every ambiguity. &ldquo;Anomalous&rdquo; becomes a specific threshold. &ldquo;Promptly&rdquo; becomes a cycle count. &ldquo;Any primary sensor&rdquo; becomes a named variable. These questions go <em>back</em> to systems engineers, improving the SRS itself. Defects caught at requirements stage are orders of magnitude cheaper than defects found in testing.
+    </div>
+  </div>
+
+  <div class="callout callout-green">
+    <span class="callout-icon">&#9733;</span>
+    <div>
+      <strong>One artifact, three consumers.</strong> The FRETish formalization simultaneously serves as:
+      <strong>(1)</strong> developer implementation spec (alongside the SRS),
+      <strong>(2)</strong> tester&rsquo;s MC/DC test spec,
+      <strong>(3)</strong> verifier&rsquo;s formal contract.
+      It doesn&rsquo;t add work &mdash; it replaces the ambiguity-resolution step that already happens informally (in people&rsquo;s heads) with a tool-supported version that produces machine-checkable artifacts as a byproduct.
+    </div>
+  </div>
+
+  <h3>Where does the SRS live? DOORS + FRET together</h3>
+
+  <p>In practice, the SRS doesn&rsquo;t live as a Word document &mdash; it lives in <strong>IBM Rational DOORS</strong> (Dynamic Object-Oriented Requirements System), the industry-standard requirements management tool. DOORS handles storage, versioning, traceability. FRET handles formalization. They are complementary:</p>
+
+  <table>
+    <thead><tr><th>Concern</th><th>DOORS</th><th>FRET</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Stores</strong></td><td>ALL requirements &mdash; functional, interface, safety, design constraints, quality</td><td>Only formalizable behavioral subset (~40-60% of functional, most safety)</td></tr>
+      <tr><td><strong>Format</strong></td><td>English text + attributes + traceability links</td><td>FRETish + temporal logic + CoCoSpec contracts</td></tr>
+      <tr><td><strong>Analysis</strong></td><td>Coverage gaps (link counting), change impact, baselines</td><td>Realizability, vacuity, formal verification, trace diagrams</td></tr>
+      <tr><td><strong>Output</strong></td><td>Reports, matrices, approval workflows</td><td>CoCoSpec contracts, Copilot specs, JSON export</td></tr>
+    </tbody>
+  </table>
+
+  <h4>The complete multi-step flow</h4>
+
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 16px 0; font-size: 0.9em; line-height: 1.8;">
+    <strong>1.</strong> Systems engineers write requirements in <strong>DOORS</strong> (single source of truth, unique IDs, version control)<br>
+    <strong>2.</strong> Requirements engineers identify formalizable subset &rarr; translate to <strong>FRET</strong>, preserving DOORS IDs<br>
+    <strong>3.</strong> FRET forces precision &rarr; questions go <strong>back</strong> to systems engineers &rarr; DOORS requirements improve<br>
+    <strong>4.</strong> FRET exports CoCoSpec contracts &rarr; <strong>Kind 2</strong> verifies Lustre models (design-time proof)<br>
+    <strong>5.</strong> FRET exports JSON &rarr; <strong>Ogma</strong> &rarr; <strong>Copilot</strong> C99 runtime monitors<br>
+    <strong>6.</strong> Traceability in DOORS updated: <code>DOORS-REQ-0100 &rarr; FRET:FSW-REQ-0100 &rarr; Kind2:proof &rarr; test:TestSafeMode &rarr; code:line-247</code><br>
+    <strong>7.</strong> Non-formalizable requirements stay in DOORS only (verification: Inspection/Analysis)<br>
+    <strong>8.</strong> IV&amp;V uses both: DOORS for traceability auditing, FRET/Kind 2 for formal verification
+  </div>
+
+  <div class="callout callout-blue">
+    <span class="callout-icon">&#8505;</span>
+    <div>
+      <strong>For software teams adapting this:</strong> You probably don&rsquo;t have DOORS. The mapping: DOORS &rarr; Jira/Linear with structured fields. SRS &rarr; well-structured tickets with explicit acceptance criteria. FRET &rarr; FRETish formalizations attached to tickets. Kind 2 &rarr; design-time verification (optional). Copilot &rarr; runtime assertions / observability. MC/DC &rarr; table-driven tests in CI with requirement IDs in test names. The requirement ID is the thread connecting everything.
+    </div>
+  </div>
+
+  <h3>How the SRS evolves: bugs, features, extensions</h3>
+
+  <p>The SRS is a <strong>living document under configuration management</strong>, not a one-time artifact. You never create a new SRS &mdash; you update the existing one. DOORS tracks every change: who, when, why, previous text.</p>
+
+  <table>
+    <thead><tr><th>Event</th><th>SRS change?</th><th>FRET change?</th><th>New document?</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Code bug</strong> (requirement correct, code wrong)</td><td>No</td><td>No</td><td>No &mdash; fix code + tests</td></tr>
+      <tr><td><strong>Requirements bug</strong> (requirement wrong)</td><td>Edit in place, CCB approval</td><td>Update FRETish</td><td>No &mdash; same SRS, new version</td></tr>
+      <tr><td><strong>Requirements ambiguity</strong> (most common!)</td><td>Make precise</td><td>Formalization resolves it</td><td>No &mdash; same SRS, new version</td></tr>
+      <tr><td><strong>New feature</strong></td><td>Add new requirements</td><td>Formalize behavioral subset</td><td>No &mdash; new IDs added</td></tr>
+      <tr><td><strong>Extension</strong></td><td>New + modify existing</td><td>Add + re-check realizability</td><td>No &mdash; impact analysis first</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-purple">
+    <span class="callout-icon">&#9733;</span>
+    <div>
+      <strong>Most bugs trace to requirements ambiguity, not coding errors.</strong> &ldquo;Exceeding the threshold&rdquo; &mdash; does that mean <code>&gt;</code> or <code>&gt;=</code>? In English, it&rsquo;s ambiguous. In FRETish, <code>sensor_A &gt; threshold</code> is not. If the requirement had been formalized from the start, the off-by-one would have been caught during translation, not in testing.
+    </div>
+  </div>
+
+  <h4>Concrete example: extending our middleware</h4>
+
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 16px 0; font-size: 0.9em; line-height: 1.8;">
+    <strong>Bug:</strong> CORS passthrough doesn&rsquo;t bypass auth when X-Custom-Auth header is present.<br>
+    <strong>Root cause:</strong> Requirements gap &mdash; R2 sets <code>passthrough_cors = true</code>, but no requirement says auth is skipped when passthrough is active.<br>
+    <strong>Fix:</strong> Add <strong>R8:</strong> &ldquo;When passthrough_cors is true, MiddlewareExecutor shall immediately satisfy auth_bypassed = true.&rdquo;<br>
+    <strong>FRET re-check:</strong> Does R8 conflict with existing R1&ndash;R7? (e.g., R3 might assume auth always runs)<br>
+    <strong>Update:</strong> New field in <code>MiddlewarePlan</code> &rarr; update pure function &rarr; new MC/DC rows &rarr; traceability: BUG-4521 &rarr; R8 &rarr; test &rarr; code
+  </div>
+
+  <h3>Why do GN&amp;C and flight software work so differently?</h3>
+
+  <p>The fundamental difference is the <strong>nature of the problem</strong>, not a process choice:</p>
+
+  <div class="comparison">
+    <div class="panel panel-after" style="border-color: var(--purple)">
+      <div class="panel-header" style="background: rgba(188,140,255,0.1); color: var(--purple); border-color: rgba(188,140,255,0.2)"><span class="dot" style="background: var(--purple)"></span> GN&amp;C = Continuous Math</div>
+      <div style="padding: 16px 20px; font-size: 0.9em; line-height: 1.7;">
+        <p style="margin-bottom: 8px;"><em>&ldquo;Given attitude sensor X and thruster capacity Y, compute thrust vector Z.&rdquo;</em></p>
+        <ul style="padding-left: 18px; margin-bottom: 12px;">
+          <li><strong>Mathematically expressible</strong> &mdash; differential equations, transfer functions, PID controllers</li>
+          <li><strong>Naturally dataflow</strong> &mdash; inputs &rarr; transforms &rarr; outputs, every cycle, no side effects</li>
+          <li><strong>Same computation every clock tick</strong> &mdash; no branching, no event-driven state</li>
+          <li>Simulink/SCADE were <em>designed</em> for exactly this &mdash; block diagrams map 1:1 to the math</li>
+        </ul>
+        <p style="margin-bottom: 0; color: var(--purple); font-weight: 600;">Analogy: a signal processing pipeline (audio effects chain).</p>
+      </div>
+    </div>
+    <div class="panel panel-after" style="border-color: var(--cyan)">
+      <div class="panel-header" style="background: rgba(57,210,192,0.1); color: var(--cyan); border-color: rgba(57,210,192,0.2)"><span class="dot" style="background: var(--cyan)"></span> Flight Software = Event-Driven State</div>
+      <div style="padding: 16px 20px; font-size: 0.9em; line-height: 1.7;">
+        <p style="margin-bottom: 8px;"><em>&ldquo;When sensor A reports fault AND we&rsquo;re in cruise phase, switch to safe mode, reconfigure power bus, notify ground.&rdquo;</em></p>
+        <ul style="padding-left: 18px; margin-bottom: 12px;">
+          <li><strong>State machines with complex transitions</strong> &mdash; not continuous math</li>
+          <li><strong>Event-driven</strong> &mdash; responds to commands, faults, timers</li>
+          <li><strong>Rich I/O</strong> &mdash; hardware buses, file systems, comms links</li>
+          <li><strong>Edge cases everywhere</strong> &mdash; fault handling, recovery sequences, timing</li>
+          <li>Simulink is awkward for this &mdash; like writing a novel in a spreadsheet</li>
+        </ul>
+        <p style="margin-bottom: 0; color: var(--cyan); font-weight: 600;">Analogy: a web server with state machines &mdash; like our middleware.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-blue">
+    <span class="callout-icon">&#8505;</span>
+    <div>
+      <strong>Our middleware example is flight software, not GN&amp;C.</strong> Event-driven, state-dependent, lots of branching, rich I/O. That&rsquo;s why we face the same challenges NASA flight software engineers face &mdash; hand-written code, spec/implementation gap, process-heavy mitigation. The common thread across both NASA teams isn&rsquo;t Simulink &mdash; it&rsquo;s the <strong>separation of requirements, implementation, and verification into different teams with formal tooling connecting them</strong>.
+    </div>
+  </div>
+
+  <h3>How do requirements engineers get feedback without waiting for IV&amp;V?</h3>
+
+  <p>The requirements team doesn't write requirements into a void and wait weeks. FRET provides <strong>immediate feedback loops</strong>:</p>
+
+  <table>
+    <thead><tr><th>Feedback mechanism</th><th>Who uses it</th><th>Speed</th></tr></thead>
+    <tbody>
+      <tr><td><strong>FRET trace diagrams</strong> &mdash; you toggle input values at each time step, and FRET evaluates whether the <em>requirement</em> is satisfied or violated. It doesn&rsquo;t simulate the system &mdash; it simulates the requirement: &ldquo;given these inputs, what does the requirement <em>expect</em> to happen?&rdquo; If the expectation doesn&rsquo;t match your intent, the requirement is wrong.</td><td>Requirements engineer, solo</td><td>Instant (in-tool)</td></tr>
+      <tr><td><strong>Multi-view semantics</strong> &mdash; FRET shows each requirement in 4 forms simultaneously: original English, structured parse (scope / condition / timing / response), temporal logic formula, and trace diagram. Mismatches between what you <em>wrote</em> and what you <em>meant</em> become visible.</td><td>Requirements engineer, solo</td><td>Instant</td></tr>
+      <tr><td><strong>Realizability checking</strong> &mdash; takes ALL your requirements together and checks: &ldquo;is there any implementation that could satisfy all of these simultaneously?&rdquo; If not, it tells you which requirements conflict.</td><td>Requirements engineer, solo</td><td>Seconds</td></tr>
+      <tr><td><strong>Variable glossary agreement</strong> &mdash; inputs/outputs are agreed with the implementation team upfront. The glossary <em>is</em> the interface contract.</td><td>Requirements + GN&amp;C teams together</td><td>Upfront (design phase)</td></tr>
+      <tr><td><strong>Kind 2 counterexamples</strong> &mdash; when IV&amp;V runs Kind 2 and a contract fails, it returns the exact input combination that breaks it</td><td>IV&amp;V &rarr; back to requirements team</td><td>Seconds to minutes</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-green">
+    <span class="callout-icon">&#10003;</span>
+    <div>
+      <strong>Important distinction:</strong> FRET does not simulate your <em>system</em>. It simulates your <em>requirement</em>. You provide hypothetical input scenarios, and FRET tells you what the requirement expects should happen. If the expectation doesn&rsquo;t match your mental model &rarr; the requirement is wrong, and you catch it before any code exists.
+    </div>
+  </div>
+
+  <h3>Can FRET flag scenarios you haven&rsquo;t covered?</h3>
+
+  <p>Yes &mdash; this is one of FRET&rsquo;s most valuable capabilities:</p>
+
+  <table>
+    <thead><tr><th>Detection</th><th>What it catches</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Vacuity detection</strong></td>
+        <td>Requirements that are &ldquo;vacuously true&rdquo; &mdash; trivially satisfied because their trigger condition never actually fires in any scenario</td>
+        <td>R4 says &ldquo;when error AND goPlugin, suppress response&rdquo; &mdash; but if no other requirement ever makes both true together, R4 is dead code. Looks covered, isn&rsquo;t.</td>
+      </tr>
+      <tr>
+        <td><strong>Completeness gaps</strong></td>
+        <td>Input combinations where <em>no requirement specifies what should happen</em></td>
+        <td>R1&ndash;R6 cover error and happy paths, but nothing says what happens when <code>error=false &amp;&amp; errCode=0 &amp;&amp; newFlag=true</code>. That&rsquo;s a gap &mdash; undefined behavior.</td>
+      </tr>
+      <tr>
+        <td><strong>Conflict detection</strong></td>
+        <td>Two requirements that demand contradictory outputs for the same input</td>
+        <td>R3 says &ldquo;when error, write_error=true&rdquo; and R4 says &ldquo;when error AND goPlugin, write_error=false&rdquo; &mdash; FRET checks if these can coexist.</td>
+      </tr>
+      <tr>
+        <td><strong>Diagnostic traces</strong></td>
+        <td>The <em>specific input combination</em> that triggers a gap or conflict</td>
+        <td>&ldquo;Conflict between R3 and R4 when error=true, isGoPlugin=true, pluginHasHandler=false&rdquo;</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-orange">
+    <span class="callout-icon">&#9888;</span>
+    <div>
+      <strong>FRET&rsquo;s gap detection has limits.</strong> It catches obvious gaps through realizability analysis, but full exhaustive &ldquo;are ALL 2<sup>N</sup> scenarios covered?&rdquo; checking is Kind 2&rsquo;s job. Think of it as two layers: FRET catches requirement-level gaps (missing rules, conflicts, dead requirements). Kind 2 catches implementation-level gaps (does the code handle every state?). Together they cover both.
+    </div>
+  </div>
+
+  <h3>Step 1: FRET generates contracts (not implementations)</h3>
+
+  <p>Each FRETish requirement (R1&ndash;R7) is formalized into past-time metric Linear Temporal Logic. FRET exports this as <strong>CoCoSpec contracts</strong> &mdash; the <code>(*@contract ... *)</code> blocks with <code>guarantee</code> clauses. These are the <em>rules</em> the system must obey.</p>
+
+  <div class="callout callout-orange">
+    <span class="callout-icon">&#9888;</span>
+    <div>
+      <strong>FRET generates only the contracts (assume/guarantee), not the implementation.</strong> The Lustre node body &mdash; the actual equations like <code>trace = otel_enabled and detailed_tracing</code> &mdash; is a separate artifact. Kind 2 checks whether the implementation actually satisfies the FRET-generated contracts. This is the whole point: <em>one team writes requirements, another writes code, the tool checks they agree.</em>
+    </div>
+  </div>
+
+  <div class="callout callout-blue">
+    <span class="callout-icon">&#8505;</span>
+    <div>
+      <strong>Is the Lustre implementation always written by hand?</strong> No &mdash; it depends on the workflow:<br><br>
+      <strong>In NASA/aerospace:</strong> The system model often comes from <strong>Simulink</strong> &mdash; MATLAB&rsquo;s visual programming environment for control systems. Engineers draw block diagrams: inputs, outputs, logic gates, state machines, lookup tables connected by wires. For our middleware, you&rsquo;d literally drag-and-drop an AND gate for <code>otel_enabled &amp;&amp; detailed_tracing</code> and wire it to a <code>trace</code> output. Simulink &rarr; Lustre translation is mechanical because both have the same semantics: &ldquo;every clock tick, compute all outputs from all inputs, no side effects.&rdquo; FRET generates the contracts. Engineers may <em>never see raw Lustre</em> &mdash; it&rsquo;s the formal intermediate representation (like assembly is to C).<br><br>
+      <strong>In automotive/avionics (SCADE):</strong> <strong>SCADE</strong> is the same idea but commercial and DO-178C certified. Engineers draw block diagrams, SCADE generates verified Lustre + certified C code. Airbus fly-by-wire uses this. Again &mdash; no hand-written Lustre.<br><br>
+      <strong>In our Go middleware example:</strong> We&rsquo;re working <em>backwards</em> from existing code that was never designed in Simulink or SCADE. So here the Lustre translation <strong>is</strong> manual. But that&rsquo;s the exception in safety-critical flows, not the rule. The normal path is: requirements in FRET &rarr; design in Simulink/SCADE &rarr; Lustre generated automatically &rarr; Kind 2 verifies.
+    </div>
+  </div>
+
+  <h3>What happens when code changes? How do we know the implementation matches the spec?</h3>
+
+  <p>This is the hardest question in the entire pipeline. The answer depends on <strong>which part of the system</strong> you&rsquo;re looking at &mdash; even within NASA:</p>
+
+  <table>
+    <thead><tr><th>Flow</th><th>Who</th><th>Code written how?</th><th>Spec &harr; implementation gap?</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>GN&amp;C via SCADE/Simulink</strong></td>
+        <td>GN&amp;C engineers</td>
+        <td>C auto-generated from Simulink/SCADE. DO-178C certified code generator.</td>
+        <td><span class="check">No gap</span> &mdash; implementation = spec by construction</td>
+      </tr>
+      <tr>
+        <td><strong>NASA flight software</strong></td>
+        <td>Flight software engineers</td>
+        <td><strong>Hand-written C/C++</strong> (Mars rovers, Orion, JWST)</td>
+        <td><span class="cross">Same gap as us</span> &mdash; code and spec are separate artifacts</td>
+      </tr>
+      <tr>
+        <td><strong>Our Go middleware</strong></td>
+        <td>Backend engineers</td>
+        <td><strong>Hand-written Go</strong></td>
+        <td><span class="cross">Same gap</span> &mdash; code and Lustre spec maintained by hand</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-purple">
+    <span class="callout-icon">&#9733;</span>
+    <div>
+      <strong>Even NASA doesn&rsquo;t fully close this gap for hand-written code.</strong> Auto-generation from the spec (SCADE) is only used for GN&amp;C control algorithms. Flight software &mdash; sequencing, fault management, comms &mdash; is hand-written C/C++, and the spec-to-code conformance gap exists there too. NASA mitigates it with <strong>process rigor</strong>, not tooling magic.
+    </div>
+  </div>
+
+  <h3>How NASA handles hand-written code (and how we can adapt it)</h3>
+
+  <table>
+    <thead><tr><th>NASA practice for hand-written C</th><th>Our Go adaptation</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Independent code review</strong> &mdash; reviewer &ne; author, always</td>
+        <td>PR reviews with MC/DC checklist: &ldquo;did you update the test table?&rdquo;</td>
+      </tr>
+      <tr>
+        <td><strong>MC/DC testing</strong> required by DO-178C Level A</td>
+        <td>Table-driven MC/DC tests in CI, failing on every commit</td>
+      </tr>
+      <tr>
+        <td><strong>Traceability matrices</strong> &mdash; every requirement &rarr; test case &rarr; test result, bidirectional</td>
+        <td>FRET requirement IDs (R1&ndash;R7) in test names: <code>"R4: GoPlugin suppresses response"</code></td>
+      </tr>
+      <tr>
+        <td><strong>IV&amp;V</strong> &mdash; separate team re-verifies independently</td>
+        <td>Kind 2 re-verification of Lustre spec (when updated)</td>
+      </tr>
+      <tr>
+        <td><strong>Static analysis</strong></td>
+        <td><code>go vet</code>, <code>staticcheck</code>, linters in CI</td>
+      </tr>
+      <tr>
+        <td><strong>Runtime monitors</strong> (R2U2 on separate hardware)</td>
+        <td>Copilot C99 monitors checking live traffic against FRET requirements</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-red">
+    <span class="callout-icon">&#9888;</span>
+    <div>
+      <strong>Be honest in presentations:</strong> The spec-to-implementation gap is real for <em>any</em> hand-written code &mdash; including NASA&rsquo;s own flight software. The difference is that NASA mitigates it with <strong>six layers of process controls</strong> (independent review, MC/DC, traceability, IV&amp;V, static analysis, runtime monitors). We can adopt the same layers. The gap doesn&rsquo;t close fully, but each layer shrinks it. Even with the gap, you&rsquo;re far ahead of &ldquo;we have unit tests and hope for the best.&rdquo;
+    </div>
+  </div>
+
+  <h3>Step 2: The Lustre node (manual in our case, auto-generated in NASA/SCADE flows)</h3>
+
+  <p>For our Go middleware, the engineer translates <code>PlanBeforeProcess</code> into Lustre equations by hand. Every Go struct field becomes a Lustre stream. The FRET-generated contracts are attached, and Kind 2 verifies the equations satisfy them:</p>
+
+  <div class="comparison">
+    <div class="panel panel-after" style="border-color: var(--cyan)">
+      <div class="panel-header" style="background: rgba(57,210,192,0.1); color: var(--cyan); border-color: rgba(57,210,192,0.2)"><span class="dot" style="background: var(--cyan)"></span> Lustre &mdash; PlanBeforeProcess</div>
+      <pre><code class="language-plaintext">node PlanBeforeProcess(
+  otel_enabled:     bool;
+  detailed_tracing: bool;
+  cors_passthrough: bool;
+  is_options:       bool;
+  instrumentation:  bool
+) returns (
+  trace:       bool;
+  passthrough: bool;
+  process:     bool;
+  call_next:   bool;
+  instrument:  bool
+);
+(*@contract
+  -- R7: tracing requires both flags
+  guarantee
+    (otel_enabled and detailed_tracing) => trace;
+  guarantee
+    not (otel_enabled and detailed_tracing) => not trace;
+
+  -- R1: CORS passthrough
+  guarantee
+    (cors_passthrough and is_options) => passthrough;
+  guarantee
+    (cors_passthrough and is_options) => call_next;
+  guarantee
+    (cors_passthrough and is_options) => not process;
+
+  -- Non-passthrough means process
+  guarantee
+    not (cors_passthrough and is_options) => process;
+  guarantee
+    not (cors_passthrough and is_options) => not passthrough;
+*)
+let
+  trace       = otel_enabled and detailed_tracing;
+  passthrough = cors_passthrough and is_options;
+  process     = not passthrough;
+  call_next   = passthrough;
+  instrument  = instrumentation;
+tel</code></pre>
+    </div>
+    <div class="panel panel-after" style="border-color: var(--green)">
+      <div class="panel-header"><span class="dot"></span> Go &mdash; Same logic, same structure</div>
+      <pre><code class="language-go">func PlanBeforeProcess(
+    in MiddlewareInputs,
+) MiddlewarePlan {
+    plan := MiddlewarePlan{
+        Instrument: in.InstrumentationOn,
+        Trace: in.OTelEnabled &amp;&amp;
+               in.DetailedTracing,
+    }
+
+    plan.PassthroughCORS =
+        in.CORSPassthrough &amp;&amp;
+        in.RequestMethod == "OPTIONS"
+
+    plan.Process = !plan.PassthroughCORS
+
+    if plan.PassthroughCORS {
+        plan.CallNext = true
+        plan.WriteError = false
+        plan.UpdateSession = false
+    }
+
+    return plan
+}
+
+// Note: the Go version uses if/else
+// for readability. The Lustre version
+// uses dataflow equations — same
+// semantics, different style.</code></pre>
+    </div>
+  </div>
+
+  <div class="arrow-connector">&darr;</div>
+
+  <div class="comparison">
+    <div class="panel panel-after" style="border-color: var(--cyan)">
+      <div class="panel-header" style="background: rgba(57,210,192,0.1); color: var(--cyan); border-color: rgba(57,210,192,0.2)"><span class="dot" style="background: var(--cyan)"></span> Lustre &mdash; PlanAfterProcess</div>
+      <pre><code class="language-plaintext">node PlanAfterProcess(
+  has_error:          bool;
+  err_code:           int;
+  is_go_plugin:       bool;
+  plugin_has_handler: bool;
+  STATUS_RESPOND:     int
+) returns (
+  write_error:    bool;
+  call_next:      bool;
+  update_session: bool
+);
+(*@contract
+  -- R2: error blocks forwarding
+  guarantee has_error => not call_next;
+
+  -- R3: error triggers response write
+  --      (unless GoPlugin suppresses)
+  guarantee
+    (has_error and not
+      (is_go_plugin and plugin_has_handler))
+    => write_error;
+
+  -- R4: GoPlugin suppresses response
+  guarantee
+    (has_error and is_go_plugin
+     and plugin_has_handler)
+    => not write_error;
+
+  -- R5: StatusRespond bypass
+  guarantee
+    (not has_error
+     and err_code = STATUS_RESPOND)
+    => not call_next;
+
+  -- R6: happy path
+  guarantee
+    (not has_error
+     and err_code &lt;&gt; STATUS_RESPOND)
+    => call_next and update_session;
+*)
+let
+  write_error = has_error and
+    not (is_go_plugin and plugin_has_handler);
+
+  call_next = if has_error then false
+    else err_code &lt;&gt; STATUS_RESPOND;
+
+  update_session = if has_error then false
+    else true;
+tel</code></pre>
+    </div>
+    <div class="panel panel-after" style="border-color: var(--green)">
+      <div class="panel-header"><span class="dot"></span> Go &mdash; Same logic</div>
+      <pre><code class="language-go">func PlanAfterProcess(
+    plan MiddlewarePlan,
+    result ProcessResult,
+) MiddlewarePlan {
+    hasError := result.Err != nil
+
+    if hasError {
+        plan.WriteError =
+            !(result.IsGoPlugin &amp;&amp;
+              result.PluginHasHandler)
+        plan.CallNext = false
+        plan.UpdateSession = false
+    } else {
+        plan.WriteError = false
+        plan.CallNext =
+            result.ErrCode !=
+            middleware.StatusRespond
+        plan.UpdateSession = true
+    }
+
+    return plan
+}
+
+
+
+
+// The Lustre equations and Go if/else
+// express identical logic.
+// Kind 2 proves the contracts hold
+// for ALL possible input combinations
+// — not just the 11 MC/DC test cases.</code></pre>
+    </div>
+  </div>
+
+  <h3>Step 3: Kind 2 proves ALL states</h3>
+
+  <div class="callout callout-purple">
+    <span class="callout-icon">&#9733;</span>
+    <div>
+      <strong>MC/DC tests 11 cases. Kind 2 proves all 2<sup>8</sup> = 256 input combinations.</strong><br><br>
+      When you run <code>kind2 middleware_plan.lus</code>, it uses SMT solvers (BMC, k-induction, IC3 in parallel) to mathematically prove that every guarantee holds for every possible combination of inputs. If any guarantee can be violated, Kind 2 returns a <strong>counterexample trace</strong> showing exactly which inputs break which contract.
+    </div>
+  </div>
+
+  <h3>Step 4: The Complete Pipeline</h3>
+
+  <div class="pipeline-grid">
+    <div class="pipeline-col">
+      <div class="pipeline-col-header">Go Pure Functions</div>
+      <div class="pipeline-card"><div class="card-title">PlanBeforeProcess()</div><div class="card-desc">PlanAfterProcess()</div></div>
+      <div class="pipeline-arrow-row">&darr;</div>
+      <div class="pipeline-card"><div class="card-title">MC/DC table-driven</div><div class="card-desc">unit tests (11 cases)</div></div>
+      <div style="text-align:center; margin-top:8px; font-size:0.8em; font-weight:700; color:var(--green); text-transform:uppercase; letter-spacing:0.05em;">Layer 1: Dev-time tests</div>
+    </div>
+    <div class="pipeline-col">
+      <div class="pipeline-col-header">Lustre Specification</div>
+      <div class="pipeline-card"><div class="card-title">Lustre node +</div><div class="card-desc">CoCoSpec contracts</div></div>
+      <div class="pipeline-arrow-row">&darr;</div>
+      <div class="pipeline-card"><div class="card-title">FRET: FRETish &rarr;</div><div class="card-desc">pmLTL &rarr; CoCoSpec</div></div>
+      <div style="text-align:center; margin-top:8px; font-size:0.8em; font-weight:700; color:var(--purple); text-transform:uppercase; letter-spacing:0.05em;">Layer 2: Design-time proof</div>
+    </div>
+    <div class="pipeline-col">
+      <div class="pipeline-col-header">Proof / Monitoring</div>
+      <div class="pipeline-card"><div class="card-title" style="color:var(--green)">Kind 2: PROVED</div><div class="card-desc">for ALL inputs</div></div>
+      <div class="pipeline-arrow-row">&darr;</div>
+      <div class="pipeline-card"><div class="card-title">Ogma &rarr; Copilot &rarr;</div><div class="card-desc">C99 runtime monitors</div></div>
+      <div style="text-align:center; margin-top:8px; font-size:0.8em; font-weight:700; color:var(--orange); text-transform:uppercase; letter-spacing:0.05em;">Layer 3: Runtime safety</div>
+    </div>
+  </div>
+  <p style="text-align:center; color:var(--text-dim); font-size:0.85em; margin-top:4px;">Arrows between columns: Go functions <strong>&rarr;</strong> translate to Lustre nodes <strong>&rarr;</strong> verified by Kind 2 / monitored by Copilot</p>
+
+  <h3>What Kind 2 Proves That MC/DC Cannot</h3>
+
+  <table>
+    <thead><tr><th>Dimension</th><th>MC/DC (11 test cases)</th><th>Kind 2 (formal proof)</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Coverage</strong></td>
+        <td>11 of 256 input combinations</td>
+        <td>All 256 input combinations</td>
+      </tr>
+      <tr>
+        <td><strong>What it finds</strong></td>
+        <td>Each condition independently matters</td>
+        <td>Contract violations in ANY state</td>
+      </tr>
+      <tr>
+        <td><strong>Interaction effects</strong></td>
+        <td>Can miss multi-condition interactions</td>
+        <td>Finds ALL interactions (exhaustive)</td>
+      </tr>
+      <tr>
+        <td><strong>Realizability</strong></td>
+        <td>Cannot check</td>
+        <td>Can the contracts even be implemented?</td>
+      </tr>
+      <tr>
+        <td><strong>Counterexamples</strong></td>
+        <td>Test fails &rarr; shows one bad input</td>
+        <td>Minimal counterexample trace with all steps</td>
+      </tr>
+      <tr>
+        <td><strong>Maintenance</strong></td>
+        <td>Add requirement &rarr; add test manually</td>
+        <td>Add guarantee &rarr; re-run, auto-checked</td>
+      </tr>
+      <tr>
+        <td><strong>Effort</strong></td>
+        <td>Low: table-driven Go tests</td>
+        <td>Medium: need Lustre spec + Kind 2 setup</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-blue">
+    <span class="callout-icon">&#8505;</span>
+    <div>
+      <strong>The practical takeaway:</strong> You don't have to choose. Use MC/DC table-driven tests in CI for fast feedback. Use the Lustre/Kind 2 spec as the <em>source of truth</em> that the decision logic is correct for all states. When requirements change, update the Lustre contracts first, re-prove, then update the Go code and tests. The Lustre spec catches what MC/DC misses; MC/DC catches regressions fast.
+    </div>
+  </div>
+
+  <h3>Runtime Monitoring: The Third Layer</h3>
+
+  <div class="callout callout-orange">
+    <span class="callout-icon">&#9888;</span>
+    <div>
+      <strong>Why do we need runtime monitors if Kind 2 already proved everything?</strong><br>
+      Kind 2 proves that the <em>Lustre specification</em> is correct &mdash; but your production Go code is a separate implementation. Bugs can creep in during translation: a typo, a missed edge case when updating code, or a drift between the spec and the implementation over time. Runtime monitors act as a <strong>safety net</strong> that continuously checks whether the actual running system still respects the same requirements that were proven at design time. Think of it as the difference between proving a bridge design is sound on paper vs. installing strain gauges on the actual bridge.
+    </div>
+  </div>
+
+  <p>The same FRET requirements that drive Kind 2 proofs can also generate <strong>Copilot runtime monitors</strong> via Ogma. These compile to C99 constant-memory monitors that run alongside your Go service and fire alerts if any requirement is violated in production:</p>
+
+  <div style="position:relative">
+    <span class="code-label">Haskell &mdash; Copilot Monitor (generated from FRET)</span>
+    <pre><code class="language-haskell">-- Generated by Ogma from FRET JSON export
+-- Monitors R2: "error blocks forwarding"
+
+spec :: Spec
+spec = do
+  -- External variables (fed from Go middleware via CGo or sidecar)
+  let processError = extern "process_error" :: Stream Bool
+  let callNext     = extern "call_next"     :: Stream Bool
+
+  -- R2: When process_error is true, call_next must be false
+  trigger "r2_violation"
+    (processError &amp;&amp; callNext)  -- fires if error=true AND next=called
+    []
+
+  -- R6: When no error and not StatusRespond, call_next must be true
+  let statusRespond = extern "err_code_is_respond" :: Stream Bool
+  trigger "r6_violation"
+    (not processError &amp;&amp; not statusRespond &amp;&amp; not callNext)
+    []</code></pre>
+  </div>
+
+  <p>Copilot compiles this to C99 with <strong>zero dynamic allocation, constant memory, constant time per step</strong>. The monitor observes every request decision and fires a trigger if any requirement is violated in production.</p>
+
+  <div class="callout callout-blue">
+    <span class="callout-icon">&#8505;</span>
+    <div>
+      <strong>But what validates the monitors themselves?</strong> The trust chain works like this:<br><br>
+      <strong>1.</strong> You review the FRET requirements (R1&ndash;R7) &mdash; these are human-readable, auditable English sentences.<br>
+      <strong>2.</strong> FRET mechanically translates them to temporal logic &mdash; no hand-written code, no room for translation error.<br>
+      <strong>3.</strong> Ogma mechanically generates Copilot Haskell from the same temporal logic &mdash; again, no hand-written code.<br>
+      <strong>4.</strong> Copilot's compiler is <em>itself</em> formally verified &mdash; it guarantees the generated C99 faithfully implements the Haskell spec.<br><br>
+      The only trust assumption is that <strong>the FRET requirement is correct</strong>. Every step after that is mechanical or verified. This is the same assurance model NASA uses for flight-critical monitors.
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 7: RESULTS ==================== -->
+<section>
+  <h2><span class="section-num">07</span> Results</h2>
+  <p class="section-subtitle">Before and after comparison</p>
+
+  <div class="metrics">
+    <div class="metric-card green"><div class="value">100%</div><div class="label">FRET Decision Coverage</div></div>
+    <div class="metric-card green"><div class="value">0</div><div class="label">Mocks Required</div></div>
+    <div class="metric-card blue"><div class="value">~20</div><div class="label">Lines Per Function</div></div>
+    <div class="metric-card green"><div class="value">3 layers</div><div class="label">MC/DC + Kind 2 + Copilot</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th>Dimension</th><th style="color:var(--red)">Before</th><th style="color:var(--green)">After</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Decision logic location</strong></td><td>6 decisions scattered across 80-line closure</td><td>2 pure functions, ~20 lines each</td></tr>
+      <tr><td><strong>Decision vs. effects</strong></td><td>Tangled with logging, tracing, metrics</td><td>Decisions return data; executor does effects</td></tr>
+      <tr><td><strong>Test dependencies</strong></td><td>Mock HTTP, tracing, NewRelic, instrumentor</td><td>Zero mocks &mdash; just structs</td></tr>
+      <tr><td><strong>MC/DC approach</strong></td><td>Requires integration test harness</td><td>Table-driven unit tests</td></tr>
+      <tr><td><strong>FRET/Lustre coverage</strong></td><td><span class="warn">~30%</span> of behavior modelable</td><td><span class="check">100%</span> of decision logic expressible as Lustre</td></tr>
+      <tr><td><strong>Formal verification</strong></td><td>Not possible (side effects block it)</td><td>Kind 2 proves ALL 256 input states</td></tr>
+      <tr><td><strong>Runtime monitoring</strong></td><td>Not possible (no clean decision boundary)</td><td>Copilot C99 monitors from same FRET spec</td></tr>
+      <tr><td><strong>Bug isolation</strong></td><td>Can't tell if bug is in logic or wiring</td><td>Logic bugs &rarr; plan tests. Wiring bugs &rarr; integration tests</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-green">
+    <span class="callout-icon">&#10003;</span>
+    <div>
+      <strong>The fundamental trick:</strong> Decisions produce data, not side effects. Once decisions are pure data transformations, they can be expressed as Lustre equations, verified by Kind 2 for all states, monitored by Copilot at runtime, AND tested by MC/DC in CI &mdash; all from the same FRET requirements.
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 8: WHEN TO USE ==================== -->
+<section>
+  <h2><span class="section-num">08</span> When to Apply This Pattern</h2>
+  <p class="section-subtitle">Not everything needs this treatment</p>
+
+  <div class="comparison">
+    <div class="panel panel-after" style="border-color: var(--green)">
+      <div class="panel-header"><span class="dot"></span> Worth the refactoring</div>
+      <pre><code class="language-go">// Complex decision logic (4+ conditions)
+// Mixed AND/OR/nesting
+// Mode-dependent behavior
+// Critical path (auth, policy, error routing)
+// Expensive mocks needed for testing
+//
+// Examples:
+//   - Auth middleware (this example)
+//   - Policy evaluation engine
+//   - Circuit breaker state transitions
+//   - Rate limit decision with mode logic
+//   - Retry/backoff decision functions</code></pre>
+    </div>
+    <div class="panel panel-before" style="border-color: var(--orange)">
+      <div class="panel-header" style="background: rgba(210,153,34,0.1); color: var(--orange); border-color: rgba(210,153,34,0.2)"><span class="dot" style="background: var(--orange)"></span> Not worth it</div>
+      <pre><code class="language-go">// Simple guard clauses
+if err != nil { return err }
+
+// Trivial forwarding
+func handler(w, r) { proxy.Forward(w, r) }
+
+// 1-2 obvious conditions
+if cfg.Debug { log.Print(msg) }
+
+// Side effects ARE the logic
+func logRequest(r) { logger.Info(r.URL) }
+
+// If the MC/DC table is trivial without
+// refactoring, the code is already fine.</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 9: KEY INSIGHT ==================== -->
+<section style="border-bottom: none; padding-bottom: 80px;">
+  <h2><span class="section-num">09</span> The Key Insight</h2>
+  <p class="section-subtitle">Same principle at every level</p>
+
+  <div class="callout callout-blue" style="font-size: 1.05em; padding: 24px 28px;">
+    <div>
+      <p style="margin-bottom: 12px;">The <strong>Decide &rarr; Plan &rarr; Execute</strong> pattern is the FRET/Lustre component model applied at the function level:</p>
+      <ul>
+        <li><strong>Inputs</strong> (MiddlewareInputs, ProcessResult) = FRET Input variables = Lustre node inputs</li>
+        <li><strong>Decision functions</strong> (PlanBeforeProcess, PlanAfterProcess) = FRET component = Lustre node body</li>
+        <li><strong>Plan struct</strong> = FRET Output variables = Lustre node outputs</li>
+        <li><strong>Contracts</strong> (R1&ndash;R7) = FRETish requirements = CoCoSpec guarantees = MC/DC test tables</li>
+        <li><strong>Executor</strong> = outside the formal boundary &mdash; mechanical side effects, integration-tested</li>
+      </ul>
+      <p style="margin-bottom: 0; margin-top: 16px;">The pattern works because it separates <strong>what to do</strong> (pure, provable, monitorable) from <strong>how to do it</strong> (side effects, I/O). This is exactly what makes Lustre effective: synchronous dataflow equations describe behavior, compilation handles execution. Same principle, different scale.</p>
+    </div>
+  </div>
+
+  <p style="text-align: center; color: var(--text-dim); font-size: 0.9em; margin-top: 40px;">
+    From the reference book: <em>"Applying NASA, Automotive &amp; Safety-Critical Engineering to Software"</em>
+  </p>
+</section>
+
+<!-- ==================== SECTION 10: THE BIGGER PICTURE ==================== -->
+<section>
+  <h2><span class="section-num">10</span> The Bigger Picture: SRS &amp; Requirements Hierarchy</h2>
+  <p class="section-subtitle">How our middleware example fits into the complete requirements engineering picture</p>
+
+  <h3>One system, multiple components &mdash; multiple SRS documents</h3>
+
+  <p>You don&rsquo;t write one giant SRS. The <strong>document structure mirrors the architecture</strong>. Each component gets its own SRS, governed by a system-level document (SyRD) above it:</p>
+
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin: 20px 0; font-family: monospace; font-size: 0.85em; line-height: 2.2;">
+    <div style="text-align: center; margin-bottom: 8px;">
+      <span style="background: var(--purple); color: #fff; padding: 6px 16px; border-radius: 6px; font-family: inherit;">Level 0: Business Requirements</span>
+    </div>
+    <div style="text-align: center; color: var(--text-dim);">&darr;</div>
+    <div style="text-align: center; margin-bottom: 8px;">
+      <span style="background: var(--blue); color: #fff; padding: 6px 16px; border-radius: 6px; font-family: inherit;">Level 1: System Requirements (SyRD)</span>
+      <span style="color: var(--text-dim); font-family: sans-serif; font-size: 0.9em;"> &mdash; cross-cutting + interfaces</span>
+    </div>
+    <div style="text-align: center; color: var(--text-dim);">&darr;</div>
+    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+      <span style="background: var(--green); color: #fff; padding: 6px 14px; border-radius: 6px;">Gateway SRS</span>
+      <span style="background: var(--cyan); color: #fff; padding: 6px 14px; border-radius: 6px;">Dashboard SRS</span>
+      <span style="background: var(--orange); color: #fff; padding: 6px 14px; border-radius: 6px;">Cloud Mgmt SRS</span>
+      <span style="background: var(--red); color: #fff; padding: 6px 14px; border-radius: 6px;">Analytics SRS</span>
+    </div>
+    <div style="text-align: center; color: var(--text-dim); font-family: sans-serif; font-size: 0.85em; margin-top: 4px;">Level 2: one SRS per component (own change control, own team, own cadence)</div>
+  </div>
+
+  <h3>Where does each requirement live?</h3>
+
+  <table>
+    <thead><tr><th>Test</th><th>Answer</th><th>Goes in&hellip;</th></tr></thead>
+    <tbody>
+      <tr><td>Can you assign <strong>ONE owner</strong> who implements it?</td><td>Yes &mdash; team X alone</td><td><strong>Component SRS</strong> for team X</td></tr>
+      <tr><td>Requires <strong>multiple components</strong> working together?</td><td>Yes &mdash; teams X and Y</td><td><strong>System SyRD</strong> (decompose into component reqs)</td></tr>
+      <tr><td>About the <strong>contract/format</strong> between components?</td><td>Schema, protocol, API</td><td><strong>Interface Control Document (ICD)</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-blue">
+    <span class="callout-icon">&#8505;</span>
+    <div>
+      <strong>Rule of thumb:</strong> &ldquo;Can team X implement and test this WITHOUT coordinating with team Y?&rdquo; Yes &rarr; component SRS. No &rarr; SyRD or ICD.
+    </div>
+  </div>
+
+  <h3>Real example: Gateway &harr; Dashboard</h3>
+
+  <p>System-level requirement (lives in SyRD &mdash; no single component can satisfy it alone):</p>
+
+  <div class="callout callout-purple">
+    <span class="callout-icon">&#9733;</span>
+    <div>
+      <strong>SyRD-REQ-0080:</strong> &ldquo;The Gateway shall serve API traffic using the current API definitions managed by the Dashboard, with <strong>no more than 60 seconds of staleness</strong> under normal operation.&rdquo;
+    </div>
+  </div>
+
+  <p>This <strong>decomposes</strong> into component requirements:</p>
+
+  <table>
+    <thead><tr><th>Component</th><th>Requirement</th><th>ID</th></tr></thead>
+    <tbody>
+      <tr><td><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--cyan); margin-right:6px;"></span><strong>Dashboard</strong></td><td>Expose API definitions via GET /v2/apis within 100ms</td><td>DASH-REQ-0040</td></tr>
+      <tr><td><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--cyan); margin-right:6px;"></span><strong>Dashboard</strong></td><td>Include version identifier and last-modified timestamp</td><td>DASH-REQ-0041</td></tr>
+      <tr><td><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--cyan); margin-right:6px;"></span><strong>Dashboard</strong></td><td>Emit APIDefinitionsUpdated event within 5s of change</td><td>DASH-REQ-0042</td></tr>
+      <tr><td><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--green); margin-right:6px;"></span><strong>Gateway</strong></td><td>Load API definitions from Dashboard on startup</td><td>GW-REQ-0100</td></tr>
+      <tr><td><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--green); margin-right:6px;"></span><strong>Gateway</strong></td><td>Refresh by polling Dashboard every 30 seconds</td><td>GW-REQ-0101</td></tr>
+      <tr><td><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--green); margin-right:6px;"></span><strong>Gateway</strong></td><td>Retry failed calls 3&times; with backoff (1s, 2s, 4s)</td><td>GW-REQ-0102</td></tr>
+      <tr><td><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--green); margin-right:6px;"></span><strong>Gateway</strong></td><td>Serve cached definitions when Dashboard unreachable</td><td>GW-REQ-0103</td></tr>
+      <tr><td><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--green); margin-right:6px;"></span><strong>Gateway</strong></td><td>Set X-API-Definitions-Stale header when stale &gt;60s</td><td>GW-REQ-0104</td></tr>
+      <tr><td style="color: var(--text-dim);"><strong>ICD</strong></td><td>GET /v2/apis with APIDefinitionResponse schema</td><td>ICD-GW-DASH-001</td></tr>
+      <tr><td style="color: var(--text-dim);"><strong>ICD</strong></td><td>Event on topic <code>api.definitions.updated</code></td><td>ICD-GW-DASH-002</td></tr>
+    </tbody>
+  </table>
+
+  <div style="background: var(--surface); border: 1px solid var(--green); border-radius: 8px; padding: 16px 20px; margin: 16px 0; font-size: 0.9em;">
+    <strong style="color: var(--green);">Math check:</strong> Dashboard publishes within 5s + Gateway polls every 30s + retry time &asymp; <strong>worst-case staleness under 60s</strong> &check;
+  </div>
+
+  <h3>Traceability across the hierarchy</h3>
+
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 16px 0; font-family: monospace; font-size: 0.82em; line-height: 2;">
+    <span style="color: var(--purple);">SyRD-REQ-0080</span> (60s staleness)<br>
+    &nbsp;&nbsp;&boxur;&nbsp;<span style="color: var(--cyan);">DASH-REQ-0040</span> (expose endpoint within 100ms)<br>
+    &nbsp;&nbsp;&boxur;&nbsp;<span style="color: var(--cyan);">DASH-REQ-0042</span> (emit event within 5s)<br>
+    &nbsp;&nbsp;&boxur;&nbsp;<span style="color: var(--green);">GW-REQ-0101</span> (poll every 30s)<br>
+    &nbsp;&nbsp;&boxur;&nbsp;<span style="color: var(--green);">GW-REQ-0102</span> (retry 3&times;)<br>
+    &nbsp;&nbsp;&boxur;&nbsp;<span style="color: var(--green);">GW-REQ-0103</span> (serve cached on failure)<br>
+    &nbsp;&nbsp;&boxv;&nbsp;&nbsp;&nbsp;&boxur;&nbsp;<span style="color: var(--text-dim);">test:TestGatewayCacheFallback</span><br>
+    &nbsp;&nbsp;&boxv;&nbsp;&nbsp;&nbsp;&boxur;&nbsp;<span style="color: var(--text-dim);">code:gateway/plan.go:line-87</span><br>
+    &nbsp;&nbsp;&boxur;&nbsp;<span style="color: var(--text-dim);">ICD-GW-DASH-001</span> (schema contract)
+  </div>
+
+  <h3>What goes in each document type</h3>
+
+  <table>
+    <thead><tr><th>Requirement type</th><th>Where it lives</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr><td>Component behavior (one owner)</td><td><strong>Component SRS</strong></td><td>&ldquo;Gateway shall reject invalid tokens within 5ms&rdquo;</td></tr>
+      <tr><td>Fault tolerance of one component</td><td><strong>Component SRS</strong> (traced to system avail. req)</td><td>&ldquo;Gateway shall cache APIs when Dashboard is down&rdquo;</td></tr>
+      <tr><td>End-to-end system behavior</td><td><strong>System SyRD</strong> (decomposes into per-component)</td><td>&ldquo;System shall process backups within 5 min e2e&rdquo;</td></tr>
+      <tr><td>Data format / protocol</td><td><strong>ICD</strong></td><td>&ldquo;Gateway calls Dashboard using schema v2&rdquo;</td></tr>
+      <tr><td>System-level safety</td><td><strong>System SyRD</strong></td><td>&ldquo;No single failure shall cause data loss&rdquo;</td></tr>
+      <tr><td>Cross-cutting quality</td><td><strong>System SyRD</strong> (components reference it)</td><td>&ldquo;All components log JSON with correlation IDs&rdquo;</td></tr>
+      <tr><td>Non-functional budget</td><td><strong>System SyRD</strong> (decomposed per component)</td><td>&ldquo;5 min = 50ms GW + 2s ack + 4min backup + 30s analytics&rdquo;</td></tr>
+    </tbody>
+  </table>
+
+  <h3>How the SRS evolves</h3>
+
+  <p>The SRS is a <strong>living document under configuration management</strong> (DOORS tracks every change: who, when, why, previous text). You never create a new SRS &mdash; you version it.</p>
+
+  <table>
+    <thead><tr><th>Event</th><th>SRS change?</th><th>FRET change?</th><th>New document?</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Code bug</strong> (req correct, code wrong)</td><td>No</td><td>No</td><td>No &mdash; fix code + tests</td></tr>
+      <tr><td><strong>Requirements ambiguity</strong> (most common!)</td><td>Make precise, CCB approval</td><td>Formalization resolves it</td><td>No &mdash; new version</td></tr>
+      <tr><td><strong>New feature</strong></td><td>Add new requirement IDs</td><td>Formalize behavioral subset</td><td>No &mdash; new IDs added</td></tr>
+      <tr><td><strong>Extension</strong></td><td>New + modify existing</td><td>Add + re-check realizability</td><td>No &mdash; impact analysis first</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-purple">
+    <span class="callout-icon">&#9733;</span>
+    <div>
+      <strong>Most bugs trace to requirements ambiguity, not coding errors.</strong> &ldquo;Exceeding the threshold&rdquo; &mdash; does that mean <code>&gt;</code> or <code>&gt;=</code>? In English, it&rsquo;s ambiguous. In FRETish, <code>sensor_A &gt; threshold</code> is not. If formalized from the start, the off-by-one is caught during <strong>translation</strong>, not testing.
+    </div>
+  </div>
+
+  <h3>Full SRS example: Gateway API Definitions Loading (with embedded FRET)</h3>
+
+  <p>Here is what a complete component SRS section looks like when augmented with FRET formalizations. This is not a toy example &mdash; this is a production-ready requirements document you can use as a template:</p>
+
+  <div style="background: var(--surface); border: 2px solid var(--accent); border-radius: 12px; overflow: hidden; margin: 24px 0;">
+    <div style="background: var(--surface2); padding: 18px 24px; border-bottom: 2px solid var(--accent); display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <strong style="font-size: 1.1em; color: var(--text-bright);">Gateway SRS &mdash; Section 3.4: API Definition Loading</strong><br>
+        <span style="color: var(--text-dim); font-size: 0.85em;">Document: GW-SRS-v2.1 &nbsp;|&nbsp; Owner: Gateway Team &nbsp;|&nbsp; Status: Approved</span>
+      </div>
+      <span class="badge badge-blue" style="position: static;">6 requirements &bull; 4 FRET-formalized</span>
+    </div>
+
+    <div style="padding: 24px;">
+
+      <!-- GW-REQ-0100 -->
+      <div style="margin-bottom: 28px;">
+        <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px;">
+          <code style="font-size: 0.85em; font-weight: 700;">GW-REQ-0100</code>
+          <span style="color: var(--text-dim); font-size: 0.82em;">Priority: P0 &nbsp;|&nbsp; Verification: Test &nbsp;|&nbsp; Traces to: SyRD-REQ-0080</span>
+        </div>
+        <p style="margin-bottom: 8px;"><strong>The Gateway shall load API definitions from Dashboard API (GET /v2/apis) on startup, blocking traffic until initial load succeeds or cached definitions are available.</strong></p>
+        <div class="fret-req" style="margin: 8px 0;">
+          <span class="fret-label">FRET: GW-REQ-0100</span>
+          Upon startup, the Gateway shall immediately satisfy<br>
+          (api_definitions_loaded = true | cached_definitions_available = true)<br>
+          before traffic_accepted = true.
+        </div>
+        <div style="font-size: 0.82em; color: var(--text-dim);">
+          <strong>MC/DC conditions:</strong> startup (bool), api_load_success (bool), cache_available (bool) &rarr; <strong>N+1 = 4 tests</strong>
+        </div>
+      </div>
+
+      <!-- GW-REQ-0101 -->
+      <div style="margin-bottom: 28px;">
+        <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px;">
+          <code style="font-size: 0.85em; font-weight: 700;">GW-REQ-0101</code>
+          <span style="color: var(--text-dim); font-size: 0.82em;">Priority: P0 &nbsp;|&nbsp; Verification: Test &nbsp;|&nbsp; Traces to: SyRD-REQ-0080</span>
+        </div>
+        <p style="margin-bottom: 8px;"><strong>The Gateway shall refresh API definitions by polling Dashboard API every 30 seconds.</strong></p>
+        <div class="fret-req" style="margin: 8px 0;">
+          <span class="fret-label">FRET: GW-REQ-0101</span>
+          The Gateway shall every 30 seconds satisfy<br>
+          dashboard_api_polled = true.
+        </div>
+        <div style="font-size: 0.82em; color: var(--text-dim);">
+          <strong>MC/DC conditions:</strong> timer_expired (bool) &rarr; <strong>N+1 = 2 tests</strong>
+        </div>
+      </div>
+
+      <!-- GW-REQ-0102 -->
+      <div style="margin-bottom: 28px;">
+        <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px;">
+          <code style="font-size: 0.85em; font-weight: 700;">GW-REQ-0102</code>
+          <span style="color: var(--text-dim); font-size: 0.82em;">Priority: P1 &nbsp;|&nbsp; Verification: Test &nbsp;|&nbsp; Traces to: SyRD-REQ-0080, ICD-GW-DASH-001</span>
+        </div>
+        <p style="margin-bottom: 8px;"><strong>The Gateway shall retry failed Dashboard API calls up to 3 times with exponential backoff (1s, 2s, 4s).</strong></p>
+        <div class="fret-req" style="margin: 8px 0;">
+          <span class="fret-label">FRET: GW-REQ-0102</span>
+          When dashboard_request_failed is true &amp; retry_count &lt; 3,<br>
+          the Gateway shall within backoff_delay satisfy<br>
+          dashboard_request_retried = true.
+        </div>
+        <div style="font-size: 0.82em; color: var(--text-dim);">
+          <strong>MC/DC conditions:</strong> request_failed (bool), retry_count &lt; 3 (bool) &rarr; <strong>N+1 = 3 tests</strong><br>
+          <strong>Boundary values:</strong> retry_count = {0, 1, 2, 3} &times; backoff = {1s, 2s, 4s}
+        </div>
+      </div>
+
+      <!-- GW-REQ-0103 -->
+      <div style="margin-bottom: 28px;">
+        <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px;">
+          <code style="font-size: 0.85em; font-weight: 700;">GW-REQ-0103</code>
+          <span style="color: var(--text-dim); font-size: 0.82em;">Priority: P0 &nbsp;|&nbsp; Verification: Test &nbsp;|&nbsp; Traces to: SyRD-REQ-0080, SyRD-REQ-0015 (availability)</span>
+        </div>
+        <p style="margin-bottom: 8px;"><strong>When Dashboard API is unreachable after all retries, the Gateway shall continue serving traffic using the last successfully loaded API definitions.</strong></p>
+        <div class="fret-req" style="margin: 8px 0;">
+          <span class="fret-label">FRET: GW-REQ-0103</span>
+          When dashboard_unreachable is true &amp; retry_count &gt;= 3,<br>
+          the Gateway shall immediately satisfy<br>
+          serve_cached_definitions = true &amp; traffic_accepted = true.
+        </div>
+        <div style="font-size: 0.82em; color: var(--text-dim);">
+          <strong>MC/DC conditions:</strong> dashboard_unreachable (bool), retries_exhausted (bool), cache_available (bool) &rarr; <strong>N+1 = 4 tests</strong><br>
+          <strong>Safety note:</strong> If cache is also unavailable, Gateway returns 503 (separate req GW-REQ-0110)
+        </div>
+      </div>
+
+      <!-- GW-REQ-0104 -->
+      <div style="margin-bottom: 28px;">
+        <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px;">
+          <code style="font-size: 0.85em; font-weight: 700;">GW-REQ-0104</code>
+          <span style="color: var(--text-dim); font-size: 0.82em;">Priority: P2 &nbsp;|&nbsp; Verification: Test &nbsp;|&nbsp; Traces to: SyRD-REQ-0080</span>
+        </div>
+        <p style="margin-bottom: 8px;"><strong>When serving stale API definitions (Dashboard unreachable for &gt;60s), the Gateway shall set response header <code>X-API-Definitions-Stale: true</code>.</strong></p>
+        <div style="font-size: 0.82em; color: var(--text-dim);">
+          <em>Not FRET-formalized</em> &mdash; observability header, low criticality. Verified by integration test.
+        </div>
+      </div>
+
+      <!-- GW-REQ-0105 -->
+      <div style="margin-bottom: 12px;">
+        <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px;">
+          <code style="font-size: 0.85em; font-weight: 700;">GW-REQ-0105</code>
+          <span style="color: var(--text-dim); font-size: 0.82em;">Priority: P1 &nbsp;|&nbsp; Verification: Test &nbsp;|&nbsp; Traces to: ICD-GW-DASH-001 (ETag/304)</span>
+        </div>
+        <p style="margin-bottom: 8px;"><strong>When Dashboard API returns a version identifier matching the currently loaded version, the Gateway shall skip reloading API definitions.</strong></p>
+        <div style="font-size: 0.82em; color: var(--text-dim);">
+          <em>Not FRET-formalized</em> &mdash; optimization, not safety-critical. Verified by unit test.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Traceability footer -->
+    <div style="background: var(--surface2); padding: 16px 24px; border-top: 1px solid var(--border); font-size: 0.82em;">
+      <strong style="color: var(--text-bright);">Traceability summary:</strong>
+      <span style="color: var(--text-dim);">
+        SyRD-REQ-0080 &rarr; GW-REQ-0100, 0101, 0102, 0103, 0104, 0105 &nbsp;|&nbsp;
+        ICD-GW-DASH-001 &rarr; GW-REQ-0102, 0105 &nbsp;|&nbsp;
+        FRET-formalized: 4 of 6 (67%) &nbsp;|&nbsp;
+        Total MC/DC tests: 13
+      </span>
+    </div>
+  </div>
+
+  <div class="callout callout-green">
+    <span class="callout-icon">&#10003;</span>
+    <div>
+      <strong>Notice the pattern:</strong> Each requirement has a unique ID, priority, verification method, and upward traceability. FRET formalizations are embedded inline &mdash; not in a separate document. Requirements that don&rsquo;t warrant formalization (P2 observability, optimizations) say so explicitly. MC/DC test counts are pre-calculated from the conditions. This is one section of the Gateway SRS &mdash; other sections cover auth, routing, rate limiting, CORS, tracing, etc.
+    </div>
+  </div>
+
+  <h3>The DOORS + FRET structure for multi-component systems</h3>
+
+  <div class="comparison">
+    <div class="panel panel-after" style="border-color: var(--blue)">
+      <div class="panel-header" style="background: rgba(66,133,244,0.1); color: var(--blue); border-color: rgba(66,133,244,0.2)"><span class="dot" style="background: var(--blue)"></span> DOORS (requirements management)</div>
+      <div style="padding: 16px 20px; font-size: 0.88em; line-height: 1.8;">
+        Module: System Requirements (SyRD)<br>
+        Module: Gateway SRS<br>
+        Module: Dashboard SRS<br>
+        Module: Cloud Management Layer SRS<br>
+        Module: Analytics Layer SRS<br>
+        Module: Interface Control Document (ICD)
+      </div>
+    </div>
+    <div class="panel panel-after" style="border-color: var(--green)">
+      <div class="panel-header" style="background: rgba(80,200,120,0.1); color: var(--green); border-color: rgba(80,200,120,0.2)"><span class="dot" style="background: var(--green)"></span> FRET (formalization)</div>
+      <div style="padding: 16px 20px; font-size: 0.88em; line-height: 1.8;">
+        Project: Gateway &mdash; behavioral subset<br>
+        Project: CloudMgmtLayer &mdash; behavioral subset<br>
+        Project: AnalyticsLayer &mdash; behavioral subset<br>
+        <span style="color: var(--text-dim);">(Dashboard: fewer formalizable reqs &mdash; UI is hard to formalize)</span>
+      </div>
+    </div>
+  </div>
+
+  <h3>The Interface Control Document (ICD) in detail</h3>
+
+  <p>The ICD is a <strong>separate document</strong> &mdash; not part of any component&rsquo;s SRS. It sits between two component SRSes and defines the <strong>contract at their boundary</strong>. The ICD has <strong>two owners</strong>: both teams must agree on it and sign off. Neither can unilaterally change it.</p>
+
+  <table>
+    <thead><tr><th>Aspect</th><th>SRS</th><th>ICD</th><th>FRET</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Scope</strong></td><td>One component&rsquo;s behavior</td><td>Boundary between two components</td><td>One component&rsquo;s formalizable behavior</td></tr>
+      <tr><td><strong>Owner</strong></td><td>One team</td><td>Two teams (joint)</td><td>Requirements / IV&amp;V engineer</td></tr>
+      <tr><td><strong>Content</strong></td><td>&ldquo;Component SHALL do X&rdquo;</td><td>&ldquo;Data looks like Y, protocol is Z&rdquo;</td><td>&ldquo;When A, shall satisfy B&rdquo;</td></tr>
+      <tr><td><strong>Focus</strong></td><td>What the component does (verbs)</td><td>What flows between components (nouns)</td><td>Temporal behavioral properties (provable verbs)</td></tr>
+      <tr><td><strong>Change control</strong></td><td>One team&rsquo;s CCB</td><td>Joint CCB (both teams approve)</td><td>Updated when SRS changes</td></tr>
+      <tr><td><strong>Tested how?</strong></td><td>MC/DC, unit, integration</td><td>Contract tests, schema validation</td><td>Kind 2 proof, Copilot monitors</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Example ICD: Gateway &harr; Dashboard</h3>
+
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin: 20px 0;">
+    <div style="background: var(--surface2); padding: 16px 22px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 0.9em; letter-spacing: 0.02em;">
+      ICD-GW-DASH v2.1 &mdash; Gateway &harr; Dashboard API Definitions Interface
+      <span style="float: right; color: var(--text-dim); font-weight: 400;">Owners: Gateway Team + Dashboard Team</span>
+    </div>
+    <pre><code class="language-plaintext">INTERFACE ICD-GW-DASH-001: API Definitions REST Endpoint
+
+  Direction:      Gateway → Dashboard (request/response)
+  Transport:      HTTPS, mTLS required
+  Method:         GET
+  Path:           /v2/apis
+  Authentication: Service-to-service JWT (audience: "dashboard")
+
+  Request Headers:
+    If-None-Match: &lt;etag&gt;     (optional, conditional fetch)
+    X-Correlation-ID: &lt;uuid&gt;  (required)
+
+  Response 200 OK — Schema: APIDefinitionResponse
+  {
+    "version": string,           // semantic version "2.4.1"
+    "last_modified": timestamp,  // RFC 3339
+    "apis": [
+      {
+        "id": string,
+        "name": string,
+        "listen_path": string,   // e.g. "/users/v2"
+        "target_url": string,    // backend service URL
+        "methods": [string],     // ["GET","POST","PUT"]
+        "auth_required": bool,
+        "rate_limit": { "per_second": int, "burst": int },
+        "cors": { "enabled": bool, "allowed_origins": [string] },
+        "active": bool
+      }
+    ]
+  }
+
+  Response 304: Not Modified (ETag match, no body)
+  Response 401: { "error": "invalid_token", "message": string }
+  Response 503: { "error": "database_unavailable" }
+                Retry-After: &lt;seconds&gt;
+
+  Timing:
+    Dashboard SHALL respond within 100ms (p99)
+    Gateway SHALL timeout after 2000ms
+    Gateway SHALL retry up to 3× with backoff (1s, 2s, 4s)
+
+  Compatibility:
+    Fields may be ADDED without version bump
+    Fields SHALL NOT be removed without major version
+    Gateway MUST ignore unknown fields (forward-compatible)
+
+─────────────────────────────────────────────────────
+
+INTERFACE ICD-GW-DASH-002: API Definitions Change Event
+
+  Direction:  Dashboard → Gateway (async)
+  Transport:  Message bus (NATS/Kafka)
+  Topic:      api.definitions.updated
+
+  Schema: APIDefinitionsUpdatedEvent
+  {
+    "event_id": string,
+    "timestamp": timestamp,
+    "version": string,
+    "changed_api_ids": [string]
+  }
+
+  Timing:
+    Dashboard SHALL emit within 5s of any change
+    Gateway SHOULD re-fetch within 10s of event
+    Events are at-least-once (handle duplicates)
+
+─────────────────────────────────────────────────────
+
+INTERFACE ICD-GW-DASH-003: Health Check
+
+  Direction:  Gateway → Dashboard
+  Method:     GET /healthz
+  Response 200: { "status": "ok", "version": string }
+  Response 503: { "status": "degraded", "reason": string }
+  Timing:     SHALL respond within 50ms</code></pre>
+  </div>
+
+  <h3>Which ICD constraints connect to FRET?</h3>
+
+  <p>Most ICD content is structural (schemas, types) &mdash; not FRET-formalizable. But <strong>behavioral constraints</strong> (timing, ordering, error handling) are:</p>
+
+  <table>
+    <thead><tr><th>ICD constraint</th><th>FRET?</th><th>Becomes&hellip;</th></tr></thead>
+    <tbody>
+      <tr><td>Response schema (fields, types)</td><td><span class="cross">No</span></td><td>Schema validation / contract tests</td></tr>
+      <tr><td>&ldquo;Dashboard SHALL respond within 100ms&rdquo;</td><td><span class="check">Yes</span></td><td>DASH-REQ-0040 &rarr; FRET:Dashboard</td></tr>
+      <tr><td>&ldquo;Gateway SHALL timeout after 2000ms&rdquo;</td><td><span class="check">Yes</span></td><td>GW-REQ-0106 &rarr; FRET:Gateway</td></tr>
+      <tr><td>&ldquo;Dashboard SHALL emit event within 5s&rdquo;</td><td><span class="check">Yes</span></td><td>DASH-REQ-0042 &rarr; FRET:Dashboard</td></tr>
+      <tr><td>&ldquo;Gateway MUST ignore unknown fields&rdquo;</td><td><span class="check">Yes</span></td><td>GW-REQ-0109 &rarr; FRET:Gateway</td></tr>
+      <tr><td>&ldquo;Events are at-least-once (handle duplicates)&rdquo;</td><td>Partial</td><td>Idempotency req &rarr; GW-REQ-0108</td></tr>
+      <tr><td>&ldquo;Fields SHALL NOT be removed without major version&rdquo;</td><td><span class="cross">No</span></td><td>Process constraint, schema diff tooling</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-blue">
+    <span class="callout-icon">&#8505;</span>
+    <div>
+      <strong>Key principle:</strong> When an ICD constraint IS formalizable, it gets pulled into the relevant component&rsquo;s SRS as a proper requirement and then formalized in that component&rsquo;s FRET project. The ICD references the FRET ID for traceability but doesn&rsquo;t &ldquo;own&rdquo; the formalization.
+    </div>
+  </div>
+
+  <h3>ICD FRET traceability appendix</h3>
+
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 16px 0; font-family: monospace; font-size: 0.82em; line-height: 2;">
+    <strong style="color: var(--text-bright); font-family: Inter, sans-serif; font-size: 1.1em;">ICD-GW-DASH Traceability</strong><br><br>
+    <span style="color: var(--text-dim);">ICD 3.11</span> &ldquo;respond within 100ms&rdquo; &rarr; <span style="color: var(--cyan);">DASH-REQ-0040</span> &rarr; <span style="color: var(--purple);">FRET:Dashboard:DASH-REQ-0040</span><br>
+    <span style="color: var(--text-dim);">ICD 3.11</span> &ldquo;timeout after 2000ms&rdquo; &rarr; <span style="color: var(--green);">GW-REQ-0106</span> &rarr; <span style="color: var(--purple);">FRET:Gateway:GW-REQ-0106</span><br>
+    <span style="color: var(--text-dim);">ICD 4.6</span>&nbsp; &ldquo;emit within 5s&rdquo; &rarr; <span style="color: var(--cyan);">DASH-REQ-0042</span> &rarr; <span style="color: var(--purple);">FRET:Dashboard:DASH-REQ-0042</span><br>
+    <span style="color: var(--text-dim);">ICD 4.6</span>&nbsp; &ldquo;re-fetch within 10s&rdquo; &rarr; <span style="color: var(--green);">GW-REQ-0107</span> &rarr; <span style="color: var(--purple);">FRET:Gateway:GW-REQ-0107</span><br>
+    <span style="color: var(--text-dim);">ICD 4.7</span>&nbsp; &ldquo;handle duplicates&rdquo; &rarr; <span style="color: var(--green);">GW-REQ-0108</span> &rarr; <span style="color: var(--purple);">FRET:Gateway:GW-REQ-0108</span>
+  </div>
+
+  <h3>ICD in software terms &mdash; what you already have</h3>
+
+  <table>
+    <thead><tr><th>NASA ICD section</th><th>Your equivalent</th></tr></thead>
+    <tbody>
+      <tr><td>REST endpoint definition</td><td><strong>OpenAPI / Swagger spec</strong></td></tr>
+      <tr><td>Event/message definition</td><td><strong>AsyncAPI spec</strong> or <strong>protobuf definitions</strong></td></tr>
+      <tr><td>Schema definitions</td><td><strong>JSON Schema</strong>, protobuf, GraphQL schema</td></tr>
+      <tr><td>Timing constraints</td><td>SLA definitions, timeout configs</td></tr>
+      <tr><td>Versioning rules</td><td>API versioning policy</td></tr>
+      <tr><td>Error conventions</td><td>Error response standards doc</td></tr>
+      <tr><td>Joint CCB approval</td><td>PR review requiring both teams&rsquo; approval</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-orange">
+    <span class="callout-icon">&#9888;</span>
+    <div>
+      <strong>The practical gap:</strong> NASA consolidates all interface artifacts into ONE controlled document per interface pair. Software teams scatter them across OpenAPI files, README sections, Confluence pages, and tribal knowledge. Consolidating into an explicit ICD per interface pair &mdash; even just a well-structured markdown file &mdash; is the single most practical immediate win from this entire framework.
+    </div>
+  </div>
+
+  <h3>For software teams without DOORS</h3>
+
+  <table>
+    <thead><tr><th>NASA / Aerospace</th><th>Your adaptation</th></tr></thead>
+    <tbody>
+      <tr><td><strong>SyRD</strong> (system-level)</td><td>ADRs + API contracts (OpenAPI) + system-level epic in Jira</td></tr>
+      <tr><td><strong>Component SRS</strong></td><td>Structured Jira epics per service with acceptance criteria</td></tr>
+      <tr><td><strong>Interface Control Document</strong></td><td>OpenAPI specs, protobuf definitions, AsyncAPI for events</td></tr>
+      <tr><td><strong>DOORS traceability</strong></td><td>Jira ticket links + requirement IDs in test names + contract tests</td></tr>
+      <tr><td><strong>FRET per component</strong></td><td>FRETish formalizations for critical decision logic per service</td></tr>
+      <tr><td><strong>Change Control Board</strong></td><td>PR reviews with architectural review for cross-cutting changes</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-green">
+    <span class="callout-icon">&#10003;</span>
+    <div>
+      <strong>The requirement ID is the thread connecting everything.</strong> From system requirement &rarr; component requirement &rarr; FRET formalization &rarr; Kind 2 proof &rarr; MC/DC test &rarr; code location &rarr; runtime monitor. One ID, full traceability, at every level of the hierarchy.
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 11: FULL SRS EXAMPLE ==================== -->
+<section>
+  <h2><span class="section-num">11</span> Full SRS Example with Embedded FRET</h2>
+  <p class="section-subtitle">A complete Gateway SRS showing how requirements, FRET formalizations, ICD references, and traceability live together</p>
+
+  <div class="callout callout-blue">
+    <span class="callout-icon">&#8505;</span>
+    <div>
+      This is what a real SRS looks like when FRET augments it. Each behavioral requirement has its FRETish formalization inline, linked to ICD contracts and test cases. Click any section header to expand/collapse.
+    </div>
+  </div>
+
+  <!-- ===== SRS Document Shell ===== -->
+  <div style="background: var(--surface); border: 2px solid var(--border); border-radius: 14px; overflow: hidden; margin: 24px 0;">
+
+    <!-- SRS Header -->
+    <div style="background: var(--surface2); padding: 24px 28px; border-bottom: 2px solid var(--border);">
+      <div style="font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 8px;">Software Requirements Specification</div>
+      <div style="font-size: 1.4em; font-weight: 800; color: var(--text-bright); margin-bottom: 4px;">SRS-GW-001: API Gateway</div>
+      <div style="display: flex; gap: 24px; font-size: 0.82em; color: var(--text-dim); margin-top: 12px;">
+        <span>Version: <strong style="color: var(--text);">3.2.0</strong></span>
+        <span>Status: <strong style="color: var(--green);">Approved</strong></span>
+        <span>Owner: <strong style="color: var(--text);">Gateway Team</strong></span>
+        <span>Last CCB: <strong style="color: var(--text);">2026-03-01</strong></span>
+        <span>FRET Project: <strong style="color: var(--purple);">Gateway</strong></span>
+      </div>
+    </div>
+
+    <div style="padding: 24px 28px;">
+
+      <!-- Section 1: Introduction -->
+      <details open>
+        <summary style="cursor: pointer; font-weight: 700; font-size: 1.1em; color: var(--accent); padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; user-select: none;">
+          1. Introduction
+        </summary>
+        <div style="padding-left: 16px; font-size: 0.92em; line-height: 1.8;">
+          <p><strong>1.1 Purpose:</strong> This SRS defines the behavioral, performance, and interface requirements for the API Gateway component of the Backup Management System.</p>
+          <p><strong>1.2 Scope:</strong> The Gateway routes API traffic, enforces authentication, manages CORS, collects telemetry, and serves as the entry point for all client requests.</p>
+          <p><strong>1.3 References:</strong></p>
+          <ul style="margin-top: 4px;">
+            <li>SyRD-BMS-001: Backup Management System Requirements v2.4</li>
+            <li>ICD-GW-DASH v2.1: Gateway &harr; Dashboard Interface</li>
+            <li>ICD-GW-CLOUD v1.3: Gateway &harr; Cloud Management Interface</li>
+          </ul>
+          <p><strong>1.4 Definitions:</strong></p>
+          <table style="margin: 8px 0 0; font-size: 0.9em;">
+            <tr><td style="padding: 4px 12px; color: var(--cyan);"><code>passthrough_cors</code></td><td style="padding: 4px 12px;">CORS preflight request that bypasses all downstream processing</td></tr>
+            <tr><td style="padding: 4px 12px; color: var(--cyan);"><code>StatusRespond</code></td><td style="padding: 4px 12px;">Error code indicating response was already written by middleware</td></tr>
+            <tr><td style="padding: 4px 12px; color: var(--cyan);"><code>GoPlugin</code></td><td style="padding: 4px 12px;">Native Go plugin extension that handles its own error responses</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <!-- Section 2: Overall Description -->
+      <details>
+        <summary style="cursor: pointer; font-weight: 700; font-size: 1.1em; color: var(--accent); padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; user-select: none;">
+          2. Overall Description
+        </summary>
+        <div style="padding-left: 16px; font-size: 0.92em; line-height: 1.8;">
+          <p><strong>2.1 Product perspective:</strong> The Gateway is one of four components in the Backup Management System (Gateway, Dashboard, Cloud Management Layer, Analytics Layer). It receives all external requests and forwards them to appropriate backend services.</p>
+          <p><strong>2.2 Constraints:</strong></p>
+          <ul>
+            <li>Gateway SHALL be implemented in Go 1.22+</li>
+            <li>Gateway SHALL follow the project coding standards (see CS-GW-001)</li>
+            <li>Gateway SHALL run as a stateless container behind a load balancer</li>
+          </ul>
+          <p style="color: var(--text-dim); font-style: italic;">Note: constraints above are NOT FRET-formalizable &mdash; verified by inspection.</p>
+        </div>
+      </details>
+
+      <!-- Section 3: Functional Requirements — The Core -->
+      <details open>
+        <summary style="cursor: pointer; font-weight: 700; font-size: 1.1em; color: var(--accent); padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; user-select: none;">
+          3. Functional Requirements
+        </summary>
+        <div style="padding-left: 16px;">
+
+          <!-- 3.1 API Definition Loading -->
+          <details open>
+            <summary style="cursor: pointer; font-weight: 600; font-size: 1em; color: var(--text-bright); padding: 6px 0; margin-bottom: 8px; user-select: none;">
+              3.1 API Definition Loading
+              <span style="font-size: 0.75em; color: var(--text-dim); font-weight: 400; margin-left: 8px;">Traces to: SyRD-REQ-0080 | ICD: ICD-GW-DASH-001</span>
+            </summary>
+            <div style="padding-left: 16px;">
+
+              <!-- GW-REQ-0100 -->
+              <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <strong style="color: var(--green);">GW-REQ-0100</strong>
+                  <div style="display: flex; gap: 8px;">
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(63,185,80,0.1); color: var(--green); border: 1px solid rgba(63,185,80,0.2);">Functional</span>
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: Yes</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.92em; margin-bottom: 10px;">The Gateway <strong>shall</strong> load API definitions from Dashboard API (GET /v2/apis per ICD-GW-DASH-001) on startup, blocking traffic until initial load succeeds or cached definitions are available.</p>
+                <div class="fret-req" style="margin: 10px 0;">
+                  <span class="fret-label">FRET:Gateway:GW-REQ-0100</span>
+                  <strong>When</strong> gateway_starting <strong>is</strong> true,<br>
+                  the Gateway <strong>shall</strong> before startup_complete <strong>satisfy</strong><br>
+                  api_definitions_loaded = true | cached_definitions_available = true
+                </div>
+                <div style="font-size: 0.8em; color: var(--text-dim); display: flex; gap: 16px; margin-top: 8px;">
+                  <span>Traces to: SyRD-REQ-0080</span>
+                  <span>ICD: ICD-GW-DASH-001</span>
+                  <span>Test: TestGatewayStartupLoad</span>
+                  <span>Verification: MC/DC + Kind 2</span>
+                </div>
+              </div>
+
+              <!-- GW-REQ-0101 -->
+              <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <strong style="color: var(--green);">GW-REQ-0101</strong>
+                  <div style="display: flex; gap: 8px;">
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(63,185,80,0.1); color: var(--green); border: 1px solid rgba(63,185,80,0.2);">Functional</span>
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: Yes</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.92em; margin-bottom: 10px;">The Gateway <strong>shall</strong> refresh API definitions by polling Dashboard API every 30 seconds.</p>
+                <div class="fret-req" style="margin: 10px 0;">
+                  <span class="fret-label">FRET:Gateway:GW-REQ-0101</span>
+                  <strong>When</strong> gateway_running <strong>is</strong> true,<br>
+                  the Gateway <strong>shall</strong> every 30 seconds <strong>satisfy</strong><br>
+                  poll_dashboard_triggered = true
+                </div>
+                <div style="font-size: 0.8em; color: var(--text-dim); display: flex; gap: 16px; margin-top: 8px;">
+                  <span>Traces to: SyRD-REQ-0080</span>
+                  <span>ICD: ICD-GW-DASH-001</span>
+                  <span>Test: TestGatewayPolling</span>
+                </div>
+              </div>
+
+              <!-- GW-REQ-0102 -->
+              <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <strong style="color: var(--green);">GW-REQ-0102</strong>
+                  <div style="display: flex; gap: 8px;">
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(63,185,80,0.1); color: var(--green); border: 1px solid rgba(63,185,80,0.2);">Functional</span>
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: Yes</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.92em; margin-bottom: 10px;">The Gateway <strong>shall</strong> retry failed Dashboard API calls up to 3 times with exponential backoff (1s, 2s, 4s).</p>
+                <div class="fret-req" style="margin: 10px 0;">
+                  <span class="fret-label">FRET:Gateway:GW-REQ-0102</span>
+                  <strong>When</strong> dashboard_request_failed <strong>is</strong> true <strong>&amp;</strong> retry_count &lt; 3,<br>
+                  the Gateway <strong>shall</strong> after backoff_delay <strong>satisfy</strong><br>
+                  retry_initiated = true
+                </div>
+                <div style="font-size: 0.8em; color: var(--text-dim); display: flex; gap: 16px; margin-top: 8px;">
+                  <span>Traces to: SyRD-REQ-0080</span>
+                  <span>ICD: ICD-GW-DASH-001 &sect;3.11</span>
+                  <span>Test: TestGatewayRetryBackoff</span>
+                </div>
+              </div>
+
+              <!-- GW-REQ-0103 -->
+              <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <strong style="color: var(--green);">GW-REQ-0103</strong>
+                  <div style="display: flex; gap: 8px;">
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(248,81,73,0.1); color: var(--red); border: 1px solid rgba(248,81,73,0.2);">Safety</span>
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: Yes</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.92em; margin-bottom: 10px;">When Dashboard API is unreachable after all retries, the Gateway <strong>shall</strong> continue serving traffic using the last successfully loaded API definitions.</p>
+                <div class="fret-req" style="margin: 10px 0;">
+                  <span class="fret-label">FRET:Gateway:GW-REQ-0103 (Safety)</span>
+                  <strong>When</strong> dashboard_unreachable <strong>is</strong> true <strong>&amp;</strong> retry_count &gt;= 3,<br>
+                  the Gateway <strong>shall immediately satisfy</strong><br>
+                  serve_cached_definitions = true <strong>&amp;</strong> drop_traffic = false
+                </div>
+                <div style="font-size: 0.8em; color: var(--text-dim); display: flex; gap: 16px; margin-top: 8px;">
+                  <span>Traces to: SyRD-REQ-0080, SyRD-REQ-0015 (availability)</span>
+                  <span>Test: TestGatewayCacheFallback</span>
+                  <span>Copilot monitor: MON-GW-0103</span>
+                </div>
+              </div>
+
+            </div>
+          </details>
+
+          <!-- 3.2 Middleware Decision Logic -->
+          <details open>
+            <summary style="cursor: pointer; font-weight: 600; font-size: 1em; color: var(--text-bright); padding: 6px 0; margin-bottom: 8px; user-select: none;">
+              3.2 Middleware Decision Logic (Decide &rarr; Plan &rarr; Execute)
+              <span style="font-size: 0.75em; color: var(--text-dim); font-weight: 400; margin-left: 8px;">Pure decision functions | MC/DC coverable</span>
+            </summary>
+            <div style="padding-left: 16px;">
+
+              <!-- GW-REQ-0200 (R1 from our FRET) -->
+              <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <strong style="color: var(--green);">GW-REQ-0200</strong>
+                  <div style="display: flex; gap: 8px;">
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(63,185,80,0.1); color: var(--green); border: 1px solid rgba(63,185,80,0.2);">Functional</span>
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: R1</span>
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(57,210,192,0.1); color: var(--cyan); border: 1px solid rgba(57,210,192,0.2);">Lustre: verified</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.92em; margin-bottom: 10px;">When CORS passthrough is enabled AND the request method is OPTIONS, the Gateway middleware <strong>shall</strong> immediately set passthrough mode, bypassing all downstream processing including auth.</p>
+                <div class="fret-req" style="margin: 10px 0;">
+                  <span class="fret-label">FRET:Gateway:GW-REQ-0200 (R1 &mdash; CORS passthrough)</span>
+                  <strong>When</strong> cors_passthrough <strong>is</strong> true <strong>&amp;</strong> request_method = &ldquo;OPTIONS&rdquo;,<br>
+                  PlanBeforeProcess <strong>shall immediately satisfy</strong><br>
+                  passthrough_cors = true <strong>&amp;</strong> call_next = true
+                </div>
+                <div style="font-size: 0.8em; margin-top: 8px;">
+                  <div style="display: flex; gap: 16px; color: var(--text-dim);">
+                    <span>MC/DC tests: 3 cases</span>
+                    <span>Lustre: PlanBeforeProcess node, Kind 2 &check;</span>
+                    <span>Test: TestPlanBeforeProcess/R1_*</span>
+                  </div>
+                  <div style="margin-top: 6px; font-family: monospace; font-size: 0.88em; color: var(--text-dim);">
+                    MC/DC independence pairs: {cors=T,method=OPTIONS} &rarr; {cors=F,method=OPTIONS} &rarr; {cors=T,method=GET}
+                  </div>
+                </div>
+              </div>
+
+              <!-- GW-REQ-0201 (R2) -->
+              <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <strong style="color: var(--green);">GW-REQ-0201</strong>
+                  <div style="display: flex; gap: 8px;">
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(63,185,80,0.1); color: var(--green); border: 1px solid rgba(63,185,80,0.2);">Functional</span>
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: R2</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.92em; margin-bottom: 10px;">When the upstream process returns an error, the Gateway middleware <strong>shall</strong> block forwarding to the next handler.</p>
+                <div class="fret-req" style="margin: 10px 0;">
+                  <span class="fret-label">FRET:Gateway:GW-REQ-0201 (R2 &mdash; Error blocks forwarding)</span>
+                  <strong>When</strong> process_error <strong>is</strong> true,<br>
+                  PlanAfterProcess <strong>shall immediately satisfy</strong><br>
+                  call_next = false
+                </div>
+                <div style="font-size: 0.8em; color: var(--text-dim); display: flex; gap: 16px; margin-top: 8px;">
+                  <span>MC/DC: 2 cases (error=T/F)</span>
+                  <span>Test: TestPlanAfterProcess/R2_*</span>
+                </div>
+              </div>
+
+              <!-- GW-REQ-0202 (R3+R4 — GoPlugin) -->
+              <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <strong style="color: var(--green);">GW-REQ-0202</strong>
+                  <div style="display: flex; gap: 8px;">
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(248,81,73,0.1); color: var(--red); border: 1px solid rgba(248,81,73,0.2);">Safety</span>
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: R3+R4</span>
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(57,210,192,0.1); color: var(--cyan); border: 1px solid rgba(57,210,192,0.2);">Lustre: verified</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.92em; margin-bottom: 10px;">When an error occurs: if the handler is a GoPlugin with its own handler, the Gateway <strong>shall</strong> suppress its error response (GoPlugin handles it). Otherwise, the Gateway <strong>shall</strong> write its standard error response.</p>
+                <div class="fret-req" style="margin: 10px 0;">
+                  <span class="fret-label">FRET:Gateway:GW-REQ-0202a (R3 &mdash; Error triggers response)</span>
+                  <strong>When</strong> process_error <strong>is</strong> true <strong>&amp;</strong> (is_go_plugin = false <strong>|</strong> plugin_has_handler = false),<br>
+                  PlanAfterProcess <strong>shall immediately satisfy</strong> write_error = true
+                </div>
+                <div class="fret-req" style="margin: 10px 0;">
+                  <span class="fret-label">FRET:Gateway:GW-REQ-0202b (R4 &mdash; GoPlugin suppresses response)</span>
+                  <strong>When</strong> process_error <strong>is</strong> true <strong>&amp;</strong> is_go_plugin = true <strong>&amp;</strong> plugin_has_handler = true,<br>
+                  PlanAfterProcess <strong>shall immediately satisfy</strong> write_error = false
+                </div>
+                <div style="font-size: 0.8em; color: var(--text-dim); display: flex; gap: 16px; margin-top: 8px;">
+                  <span>MC/DC: 4 cases (R3: 3, R4: 1 shared baseline)</span>
+                  <span>Copilot monitor: MON-GW-0202</span>
+                  <span>Test: TestPlanAfterProcess/R3_*, R4_*</span>
+                </div>
+              </div>
+
+              <!-- GW-REQ-0203 (R7 — Tracing) -->
+              <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <strong style="color: var(--green);">GW-REQ-0203</strong>
+                  <div style="display: flex; gap: 8px;">
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(63,185,80,0.1); color: var(--green); border: 1px solid rgba(63,185,80,0.2);">Functional</span>
+                    <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: R7</span>
+                  </div>
+                </div>
+                <p style="font-size: 0.92em; margin-bottom: 10px;">When OpenTelemetry is enabled AND detailed tracing is configured, the Gateway middleware <strong>shall</strong> create a trace span for the request.</p>
+                <div class="fret-req" style="margin: 10px 0;">
+                  <span class="fret-label">FRET:Gateway:GW-REQ-0203 (R7 &mdash; Tracing)</span>
+                  <strong>When</strong> otel_enabled <strong>is</strong> true <strong>&amp;</strong> detailed_tracing <strong>is</strong> true,<br>
+                  PlanBeforeProcess <strong>shall immediately satisfy</strong> trace = true
+                </div>
+                <div style="font-size: 0.8em; color: var(--text-dim); display: flex; gap: 16px; margin-top: 8px;">
+                  <span>MC/DC: 3 cases</span>
+                  <span>Test: TestPlanBeforeProcess/R7_*</span>
+                </div>
+              </div>
+
+            </div>
+          </details>
+
+          <!-- 3.3 Authentication -->
+          <details>
+            <summary style="cursor: pointer; font-weight: 600; font-size: 1em; color: var(--text-bright); padding: 6px 0; margin-bottom: 8px; user-select: none;">
+              3.3 Authentication &amp; Authorization
+              <span style="font-size: 0.75em; color: var(--text-dim); font-weight: 400; margin-left: 8px;">6 requirements | 4 FRET-formalized</span>
+            </summary>
+            <div style="padding-left: 16px; font-size: 0.92em; color: var(--text-dim); line-height: 1.8; padding-bottom: 12px;">
+              <p>GW-REQ-0300 through GW-REQ-0305 cover JWT validation, token refresh, role-based access, and auth bypass for health endpoints. Four of six are FRET-formalized.</p>
+              <p style="font-style: italic;">(Collapsed for brevity &mdash; same structure as 3.1 and 3.2 above)</p>
+            </div>
+          </details>
+
+          <!-- 3.4 Rate Limiting -->
+          <details>
+            <summary style="cursor: pointer; font-weight: 600; font-size: 1em; color: var(--text-bright); padding: 6px 0; margin-bottom: 8px; user-select: none;">
+              3.4 Rate Limiting
+              <span style="font-size: 0.75em; color: var(--text-dim); font-weight: 400; margin-left: 8px;">4 requirements | 3 FRET-formalized</span>
+            </summary>
+            <div style="padding-left: 16px; font-size: 0.92em; color: var(--text-dim); line-height: 1.8; padding-bottom: 12px;">
+              <p>GW-REQ-0400 through GW-REQ-0403 cover per-API rate limits, burst handling, and 429 response generation.</p>
+              <p style="font-style: italic;">(Collapsed for brevity)</p>
+            </div>
+          </details>
+
+        </div>
+      </details>
+
+      <!-- Section 4: Performance Requirements -->
+      <details>
+        <summary style="cursor: pointer; font-weight: 700; font-size: 1.1em; color: var(--accent); padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; user-select: none;">
+          4. Performance Requirements
+        </summary>
+        <div style="padding-left: 16px;">
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <strong style="color: var(--orange);">GW-REQ-0500</strong>
+              <div style="display: flex; gap: 8px;">
+                <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(210,153,34,0.1); color: var(--orange); border: 1px solid rgba(210,153,34,0.2);">Performance</span>
+                <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: Yes</span>
+              </div>
+            </div>
+            <p style="font-size: 0.92em; margin-bottom: 10px;">The Gateway <strong>shall</strong> add no more than 5ms of latency (p99) to proxied requests, excluding upstream response time.</p>
+            <div class="fret-req" style="margin: 10px 0;">
+              <span class="fret-label">FRET:Gateway:GW-REQ-0500</span>
+              <strong>When</strong> request_received <strong>is</strong> true,<br>
+              the Gateway <strong>shall</strong> within 5ms <strong>satisfy</strong><br>
+              proxy_forwarded = true | error_response_sent = true
+            </div>
+            <div style="font-size: 0.8em; color: var(--text-dim);">
+              Traces to: SyRD-REQ-0010 (e2e latency budget: 5ms GW + 4950ms backend + 45ms analytics)
+            </div>
+          </div>
+
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <strong style="color: var(--orange);">GW-REQ-0501</strong>
+              <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(210,153,34,0.1); color: var(--orange); border: 1px solid rgba(210,153,34,0.2);">Performance</span>
+            </div>
+            <p style="font-size: 0.92em; margin-bottom: 0;">The Gateway <strong>shall</strong> handle at least 10,000 concurrent connections without degradation.</p>
+            <div style="font-size: 0.8em; color: var(--text-dim); margin-top: 6px; font-style: italic;">
+              Not FRET-formalizable &mdash; verified by load testing (see TP-GW-PERF-001)
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- Section 5: Safety Requirements -->
+      <details>
+        <summary style="cursor: pointer; font-weight: 700; font-size: 1.1em; color: var(--accent); padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; user-select: none;">
+          5. Safety Requirements
+        </summary>
+        <div style="padding-left: 16px;">
+          <div style="background: var(--bg); border: 1px solid rgba(248,81,73,0.3); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <strong style="color: var(--red);">GW-REQ-0600</strong>
+              <div style="display: flex; gap: 8px;">
+                <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(248,81,73,0.1); color: var(--red); border: 1px solid rgba(248,81,73,0.2);">Safety</span>
+                <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: Yes</span>
+                <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(57,210,192,0.1); color: var(--cyan); border: 1px solid rgba(57,210,192,0.2);">Copilot monitor</span>
+              </div>
+            </div>
+            <p style="font-size: 0.92em; margin-bottom: 10px;">The Gateway <strong>shall never</strong> forward a request with an expired or invalid authentication token to any backend service.</p>
+            <div class="fret-req" style="margin: 10px 0;">
+              <span class="fret-label">FRET:Gateway:GW-REQ-0600 (Safety &mdash; never forward invalid auth)</span>
+              the Gateway <strong>shall always satisfy</strong><br>
+              (auth_token_invalid = true) <strong>implies</strong> (request_forwarded = false)
+            </div>
+            <div style="font-size: 0.8em; color: var(--text-dim); display: flex; gap: 16px; margin-top: 8px;">
+              <span>Lustre: Kind 2 &check; (all 2^N states)</span>
+              <span>Copilot: MON-GW-0600 (runtime)</span>
+              <span>Test: TestNeverForwardInvalidAuth</span>
+            </div>
+          </div>
+
+          <div style="background: var(--bg); border: 1px solid rgba(248,81,73,0.3); border-radius: 10px; padding: 16px 20px; margin: 10px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <strong style="color: var(--red);">GW-REQ-0601</strong>
+              <div style="display: flex; gap: 8px;">
+                <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(248,81,73,0.1); color: var(--red); border: 1px solid rgba(248,81,73,0.2);">Safety</span>
+                <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 4px; background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.2);">FRET: Yes</span>
+              </div>
+            </div>
+            <p style="font-size: 0.92em; margin-bottom: 10px;">The Gateway <strong>shall never</strong> expose internal error details (stack traces, database queries, internal IPs) in error responses to external clients.</p>
+            <div class="fret-req" style="margin: 10px 0;">
+              <span class="fret-label">FRET:Gateway:GW-REQ-0601 (Safety &mdash; no internal leakage)</span>
+              the Gateway <strong>shall always satisfy</strong><br>
+              (error_response = true) <strong>implies</strong> (response_contains_internal_details = false)
+            </div>
+            <div style="font-size: 0.8em; color: var(--text-dim); display: flex; gap: 16px; margin-top: 8px;">
+              <span>Copilot: MON-GW-0601</span>
+              <span>Test: TestErrorResponseSanitization</span>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- Section 6: Interface Requirements -->
+      <details>
+        <summary style="cursor: pointer; font-weight: 700; font-size: 1.1em; color: var(--accent); padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; user-select: none;">
+          6. Interface Requirements
+        </summary>
+        <div style="padding-left: 16px; font-size: 0.92em; line-height: 1.8; padding-bottom: 12px;">
+          <table>
+            <thead><tr><th>Req ID</th><th>Interface</th><th>ICD Reference</th></tr></thead>
+            <tbody>
+              <tr><td><strong>GW-REQ-0700</strong></td><td>Gateway &harr; Dashboard: API definitions</td><td>ICD-GW-DASH-001, ICD-GW-DASH-002</td></tr>
+              <tr><td><strong>GW-REQ-0701</strong></td><td>Gateway &harr; Cloud Mgmt: backup triggers</td><td>ICD-GW-CLOUD-001</td></tr>
+              <tr><td><strong>GW-REQ-0702</strong></td><td>Gateway &harr; Analytics: request telemetry</td><td>ICD-GW-ANALYTICS-001</td></tr>
+            </tbody>
+          </table>
+          <p style="color: var(--text-dim); font-style: italic;">Each interface requirement references the corresponding ICD. Schema/protocol details live in the ICD; behavioral obligations live here in the SRS.</p>
+        </div>
+      </details>
+
+      <!-- Section 7: Traceability Matrix -->
+      <details>
+        <summary style="cursor: pointer; font-weight: 700; font-size: 1.1em; color: var(--accent); padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; user-select: none;">
+          7. Traceability Matrix (excerpt)
+        </summary>
+        <div style="padding-left: 16px;">
+          <table style="font-size: 0.82em;">
+            <thead><tr><th>SyRD Req</th><th>Gateway Req</th><th>FRET ID</th><th>Lustre</th><th>MC/DC Test</th><th>Code</th><th>Monitor</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>SyRD-REQ-0080</td>
+                <td>GW-REQ-0100</td>
+                <td style="color: var(--purple);">FRET:GW:0100</td>
+                <td style="color: var(--cyan);">&check;</td>
+                <td>TestGatewayStartupLoad</td>
+                <td>gateway/loader.go:42</td>
+                <td>&mdash;</td>
+              </tr>
+              <tr>
+                <td>SyRD-REQ-0080</td>
+                <td>GW-REQ-0103</td>
+                <td style="color: var(--purple);">FRET:GW:0103</td>
+                <td style="color: var(--cyan);">&check;</td>
+                <td>TestGatewayCacheFallback</td>
+                <td>gateway/plan.go:87</td>
+                <td style="color: var(--orange);">MON-GW-0103</td>
+              </tr>
+              <tr>
+                <td>SyRD-REQ-0025</td>
+                <td>GW-REQ-0200</td>
+                <td style="color: var(--purple);">FRET:GW:0200</td>
+                <td style="color: var(--cyan);">&check;</td>
+                <td>TestPlanBeforeProcess/R1_*</td>
+                <td>gateway/plan.go:15</td>
+                <td>&mdash;</td>
+              </tr>
+              <tr>
+                <td>SyRD-REQ-0025</td>
+                <td>GW-REQ-0202</td>
+                <td style="color: var(--purple);">FRET:GW:0202</td>
+                <td style="color: var(--cyan);">&check;</td>
+                <td>TestPlanAfterProcess/R3_*,R4_*</td>
+                <td>gateway/plan.go:55</td>
+                <td style="color: var(--orange);">MON-GW-0202</td>
+              </tr>
+              <tr>
+                <td>SyRD-REQ-0001</td>
+                <td>GW-REQ-0600</td>
+                <td style="color: var(--purple);">FRET:GW:0600</td>
+                <td style="color: var(--cyan);">&check;</td>
+                <td>TestNeverForwardInvalidAuth</td>
+                <td>gateway/auth.go:23</td>
+                <td style="color: var(--orange);">MON-GW-0600</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size: 0.85em; color: var(--text-dim); margin-top: 8px;">Every row is a verifiable chain: system req &rarr; component req &rarr; FRET formalization &rarr; Kind 2 proof &rarr; MC/DC test &rarr; code location &rarr; runtime monitor. If any link is missing, the requirement is not fully verified.</p>
+        </div>
+      </details>
+
+    </div>
+  </div>
+
+  <div class="callout callout-green">
+    <span class="callout-icon">&#10003;</span>
+    <div>
+      <strong>This is a living document.</strong> When a bug is found, the SRS is updated (new version, CCB approval). When a feature is added, new requirement IDs are added. FRET re-checks realizability. Kind 2 re-verifies. MC/DC test tables get new rows. The requirement ID is the thread that connects every artifact across the entire lifecycle.
+    </div>
+  </div>
+
+  <h3>Summary: requirement types in this SRS</h3>
+
+  <div class="metrics">
+    <div class="metric-card green">
+      <div class="value">18</div>
+      <div class="label">Functional requirements</div>
+    </div>
+    <div class="metric-card red">
+      <div class="value">4</div>
+      <div class="label">Safety requirements</div>
+    </div>
+    <div class="metric-card orange">
+      <div class="value">3</div>
+      <div class="label">Performance requirements</div>
+    </div>
+    <div class="metric-card blue">
+      <div class="value">3</div>
+      <div class="label">Interface requirements</div>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric-card" style="border-color: rgba(188,140,255,0.3);">
+      <div class="value" style="color: var(--purple);">~70%</div>
+      <div class="label">FRET-formalized</div>
+    </div>
+    <div class="metric-card" style="border-color: rgba(57,210,192,0.3);">
+      <div class="value" style="color: var(--cyan);">8</div>
+      <div class="label">Kind 2 verified</div>
+    </div>
+    <div class="metric-card" style="border-color: rgba(210,153,34,0.3);">
+      <div class="value" style="color: var(--orange);">5</div>
+      <div class="label">Copilot monitors</div>
+    </div>
+    <div class="metric-card" style="border-color: rgba(63,185,80,0.3);">
+      <div class="value" style="color: var(--green);">100%</div>
+      <div class="label">MC/DC coverage (decision logic)</div>
+    </div>
+  </div>
+
+</section>
+
+  <p style="text-align: center; color: var(--text-dim); font-size: 0.9em; margin-top: 40px;">
+    From the reference book: <em>"Applying NASA, Automotive &amp; Safety-Critical Engineering to Software"</em>
+  </p>
+
+</div>
+
+<script>
+  hljs.highlightAll();
+
+  function toggleTheme() {
+    const root = document.documentElement;
+    const label = document.getElementById('modeLabel');
+    const icon = document.querySelector('.toggle-icon');
+    const hljsLink = document.getElementById('hljs-theme');
+    const isLight = root.classList.toggle('light');
+
+    if (isLight) {
+      label.textContent = 'Dark Mode';
+      icon.textContent = '🌙';
+      hljsLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
+    } else {
+      label.textContent = 'Presentation Mode';
+      icon.textContent = '☀️';
+      hljsLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+    }
+
+    // Re-highlight to pick up new theme
+    document.querySelectorAll('pre code').forEach(block => {
+      hljs.highlightElement(block);
+    });
+  }
+
+  // Keyboard shortcut: press 'P' to toggle presentation mode
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'p' || e.key === 'P') {
+      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        toggleTheme();
+      }
+    }
+  });
+</script>
+</body>
+</html>
