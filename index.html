@@ -5,59 +5,83 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Applying NASA Engineering to Software</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-
-  :root {
-    --bg: #0d1117;
-    --surface: #161b22;
-    --border: #30363d;
-    --text: #e6edf3;
-    --text-dim: #8b949e;
-    --accent: #58a6ff;
-    --green: #3fb950;
-    --purple: #bc8cff;
-    --orange: #d29922;
-    --cyan: #39d2c0;
-  }
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
-    font-family: 'Inter', -apple-system, sans-serif;
-    background: var(--bg);
-    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: #f8f9fb;
+    color: #1f2328;
     min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 20px;
+    padding: 0;
   }
 
-  .container {
-    max-width: 800px;
-    width: 100%;
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, #0d1b2a 0%, #1b2838 50%, #0d1b2a 100%);
+    color: #fff;
+    padding: 80px 24px 60px;
+    text-align: center;
   }
 
-  h1 {
-    font-size: 2.6em;
+  .hero h1 {
+    font-size: 2.8em;
     font-weight: 800;
     letter-spacing: -0.03em;
-    text-align: center;
-    margin-bottom: 8px;
-    line-height: 1.2;
+    line-height: 1.15;
+    margin-bottom: 16px;
   }
 
-  h1 .hl { color: var(--accent); }
+  .hero h1 .hl { color: #79b8ff; }
 
-  .subtitle {
-    text-align: center;
-    color: var(--text-dim);
+  .hero .subtitle {
     font-size: 1.15em;
-    margin-bottom: 48px;
+    color: rgba(255,255,255,0.7);
+    max-width: 600px;
+    margin: 0 auto 36px;
     line-height: 1.6;
   }
 
+  .hero .author {
+    font-size: 0.95em;
+    color: rgba(255,255,255,0.5);
+    font-weight: 500;
+  }
+
+  .hero .author a { color: rgba(255,255,255,0.7); text-decoration: none; }
+  .hero .author a:hover { color: #fff; }
+
+  /* Stats bar */
+  .stats-bar {
+    background: #fff;
+    border-bottom: 1px solid #e1e4e8;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+    flex-wrap: wrap;
+  }
+
+  .stat { text-align: center; }
+  .stat-value { font-size: 1.6em; font-weight: 800; color: #0969da; }
+  .stat-label { font-size: 0.8em; color: #656d76; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  /* Main content */
+  .main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  .section-title {
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #656d76;
+    margin-bottom: 16px;
+  }
+
+  /* Cards */
   .cards {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -65,173 +89,247 @@
     margin-bottom: 48px;
   }
 
+  .card-featured {
+    grid-column: 1 / -1;
+  }
+
   @media (max-width: 640px) {
     .cards { grid-template-columns: 1fr; }
-    h1 { font-size: 1.8em; }
+    .hero h1 { font-size: 2em; }
+    .stats-bar { gap: 24px; }
   }
 
   .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
+    background: #fff;
+    border: 1px solid #e1e4e8;
+    border-radius: 12px;
     padding: 28px;
     text-decoration: none;
-    color: var(--text);
+    color: #1f2328;
     transition: all 0.2s;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
 
   .card:hover {
-    border-color: var(--accent);
+    border-color: #0969da;
+    box-shadow: 0 4px 16px rgba(9,105,218,0.1);
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   }
 
-  .card-icon {
-    font-size: 2em;
-    line-height: 1;
+  .card-featured {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: start;
+    gap: 20px;
+    background: linear-gradient(135deg, #f0f4ff 0%, #fff 100%);
+    border-color: #bdd5f5;
+  }
+
+  .card-featured:hover { border-color: #0969da; }
+
+  .card-featured .card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .card-featured .card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-end;
   }
 
   .card-title {
     font-size: 1.2em;
     font-weight: 700;
-    color: #fff;
+    color: #1f2328;
   }
 
   .card-desc {
-    color: var(--text-dim);
+    color: #656d76;
     font-size: 0.9em;
-    line-height: 1.6;
+    line-height: 1.65;
   }
 
-  .card-badge {
+  .badge {
     display: inline-block;
-    padding: 4px 10px;
+    padding: 3px 10px;
     border-radius: 12px;
-    font-size: 0.75em;
+    font-size: 0.72em;
     font-weight: 600;
     width: fit-content;
   }
 
-  .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
-  .badge-green { background: rgba(63,185,80,0.15); color: var(--green); }
-  .badge-purple { background: rgba(188,140,255,0.15); color: var(--purple); }
-  .badge-orange { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .badge-blue { background: #ddf4ff; color: #0969da; }
+  .badge-green { background: #dafbe1; color: #1a7f37; }
+  .badge-purple { background: #eddeff; color: #8250df; }
+  .badge-orange { background: #fff1d5; color: #9a6700; }
 
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.88em;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: #0969da;
+    color: #fff;
+  }
+  .btn-primary:hover { background: #0757b5; }
+
+  .btn-outline {
+    background: transparent;
+    color: #0969da;
+    border: 1px solid #bdd5f5;
+  }
+  .btn-outline:hover { background: #f0f4ff; border-color: #0969da; }
+
+  /* Topics */
+  .topics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 32px;
+  }
+
+  .topic {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: 500;
+    background: #f0f4ff;
+    color: #0969da;
+    border: 1px solid #dce7f5;
+  }
+
+  /* Footer */
   .footer {
     text-align: center;
-    color: var(--text-dim);
+    color: #656d76;
     font-size: 0.85em;
-    line-height: 1.8;
+    padding-top: 32px;
+    border-top: 1px solid #e1e4e8;
   }
 
-  .footer a { color: var(--accent); text-decoration: none; }
+  .footer a { color: #0969da; text-decoration: none; }
   .footer a:hover { text-decoration: underline; }
-
-  .stats {
-    display: flex;
-    justify-content: center;
-    gap: 32px;
-    margin-bottom: 40px;
-    flex-wrap: wrap;
-  }
-
-  .stat {
-    text-align: center;
-  }
-
-  .stat-value {
-    font-size: 1.8em;
-    font-weight: 800;
-    color: var(--accent);
-  }
-
-  .stat-label {
-    font-size: 0.8em;
-    color: var(--text-dim);
-    font-weight: 500;
-  }
 </style>
 </head>
 <body>
 
-<div class="container">
+<div class="hero">
   <h1>Applying <span class="hl">NASA Engineering</span><br>to Software</h1>
   <p class="subtitle">
-    Lessons from NASA, automotive, and safety-critical industries<br>
-    adapted for modern software teams
+    Lessons from NASA, automotive, and safety-critical industries — adapted for modern software teams building APIs, platforms, and infrastructure.
   </p>
+  <p class="author">By <a href="https://github.com/buger">Leonid Bugaev</a></p>
+</div>
 
-  <div class="stats">
-    <div class="stat">
-      <div class="stat-value">180</div>
-      <div class="stat-label">Pages</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">9</div>
-      <div class="stat-label">Chapters</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">70+</div>
-      <div class="stat-label">Slides</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">10</div>
-      <div class="stat-label">Sections</div>
-    </div>
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-value">9</div>
+    <div class="stat-label">Chapters</div>
   </div>
+  <div class="stat">
+    <div class="stat-value">70+</div>
+    <div class="stat-label">Slides</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">10</div>
+    <div class="stat-label">Interactive Sections</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">20+</div>
+    <div class="stat-label">Standards Referenced</div>
+  </div>
+</div>
+
+<div class="main">
 
   <div class="cards">
 
-    <a href="book.html" class="card">
-      <div class="card-icon">📖</div>
-      <span class="card-badge badge-blue">Reference Book</span>
-      <div class="card-title">The Complete Reference</div>
-      <div class="card-desc">
-        180-page reference covering SRS, FRET, MC/DC, Lustre, runtime monitoring, deployment safety, incident analysis, threat modeling, metrics, and adoption playbook.
+    <!-- Featured: Book -->
+    <a href="book.html" class="card card-featured">
+      <div class="card-content">
+        <span class="badge badge-blue">Reference Book</span>
+        <div class="card-title">The Complete Reference</div>
+        <div class="card-desc">
+          Covering SRS, FRET, MC/DC, Lustre, runtime monitoring, deployment safety, incident analysis, threat modeling, metrics, and a practical adoption playbook. Each chapter applies NASA and automotive standards to real software engineering problems.
+        </div>
       </div>
-      <span class="card-download">
-        <a href="nasa-engineering-for-software.pdf" download style="color: var(--accent); font-size: 0.85em; font-weight: 600;">⬇ Download PDF</a>
-      </span>
+      <div class="card-actions">
+        <span class="btn btn-primary" onclick="event.preventDefault(); window.location.href='nasa-engineering-for-software.pdf';">⬇ Download PDF</span>
+        <span class="btn btn-outline">Read Online →</span>
+      </div>
     </a>
 
+    <!-- Interactive Demo -->
     <a href="mcdc_middleware_refactoring.html" class="card">
-      <div class="card-icon">🔧</div>
-      <span class="card-badge badge-green">Interactive Demo</span>
+      <span class="badge badge-green">Interactive Demo</span>
       <div class="card-title">Real-World Example: API Gateway</div>
       <div class="card-desc">
-        A production Go middleware refactored with Decide&rarr;Plan&rarr;Execute. MC/DC test tables, FRET requirements, Lustre verification, SRS hierarchy, ICD &mdash; all applied.
+        A production Go middleware refactored with the Decide→Plan→Execute pattern. Complete MC/DC test tables, FRET requirements, Lustre verification, SRS hierarchy, and ICD — all applied to real code.
       </div>
     </a>
 
+    <!-- Presentation -->
     <a href="https://github.com/buger/nasa-presentation/blob/main/presentation.md" class="card">
-      <div class="card-icon">🎤</div>
-      <span class="card-badge badge-purple">Presentation</span>
+      <span class="badge badge-purple">Presentation</span>
       <div class="card-title">Conference Slides (Marp)</div>
       <div class="card-desc">
-        70+ slides covering the full story: from Voyager to your CI pipeline. Includes speaker notes. Built with Marp &mdash; clone the repo and run locally.
+        70+ slides with speaker notes. From Voyager to your CI pipeline. Built with Marp — clone the repo and present locally.
       </div>
     </a>
 
+    <!-- GitHub -->
     <a href="https://github.com/buger/nasa-presentation" class="card">
-      <div class="card-icon">💻</div>
-      <span class="card-badge badge-orange">Source</span>
+      <span class="badge badge-orange">Source</span>
       <div class="card-title">GitHub Repository</div>
       <div class="card-desc">
-        All source files, images, and build infrastructure. Clone, customize, and build your own PDF or presentation. Makefile included.
+        All source files, images, and build infrastructure. Clone, customize, and build your own PDF or presentation.
       </div>
     </a>
 
+  </div>
+
+  <p class="section-title" style="text-align: center;">Topics Covered</p>
+
+  <div class="topics">
+    <span class="topic">SRS</span>
+    <span class="topic">FRET</span>
+    <span class="topic">MC/DC</span>
+    <span class="topic">Lustre</span>
+    <span class="topic">Kind 2</span>
+    <span class="topic">Copilot Monitors</span>
+    <span class="topic">ICD</span>
+    <span class="topic">DO-178C</span>
+    <span class="topic">ISO 26262</span>
+    <span class="topic">NPR 7150.2D</span>
+    <span class="topic">IV&amp;V</span>
+    <span class="topic">STPA</span>
+    <span class="topic">AI Governance</span>
+    <span class="topic">Swiss Cheese Model</span>
+    <span class="topic">SOTIF</span>
+    <span class="topic">Runtime Monitoring</span>
   </div>
 
   <div class="footer">
-    <strong>Topics covered:</strong> SRS &bull; FRET &bull; MC/DC &bull; Lustre &bull; Kind 2 &bull; Copilot Monitors &bull; ICD<br>
-    DO-178C &bull; ISO 26262 &bull; NPR 7150.2D &bull; IV&amp;V &bull; STPA &bull; AI Governance &bull; Swiss Cheese Model<br><br>
-    By <a href="https://github.com/buger">Leonid Bugaev</a> &bull;
-    <a href="https://github.com/buger/nasa-presentation">View on GitHub</a>
+    <a href="https://github.com/buger/nasa-presentation">View on GitHub</a> ·
+    <a href="nasa-engineering-for-software.pdf" download>Download PDF</a> ·
+    <a href="book.html">Read Online</a>
   </div>
+
 </div>
 
 </body>
