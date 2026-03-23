@@ -21,8 +21,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pandoc
-        run: sudo apt-get update && sudo apt-get install -y pandoc
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y pandoc wkhtmltopdf
 
       - name: Build HTML book
         run: |
@@ -50,6 +50,19 @@ jobs:
             research_metrics.md \
             research_adoption_playbook.md \
             -o site/book.html
+
+      - name: Build PDF book
+        run: |
+          wkhtmltopdf \
+            --page-size A4 \
+            --margin-top 20mm \
+            --margin-bottom 20mm \
+            --margin-left 25mm \
+            --margin-right 20mm \
+            --footer-center '[page]' \
+            --footer-font-size 9 \
+            --enable-local-file-access \
+            site/book.html site/nasa-engineering-for-software.pdf
 
       - name: Copy site assets
         run: |
