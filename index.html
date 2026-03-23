@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Applying NASA Engineering to Software</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --purple: #bc8cff;
+    --orange: #d29922;
+    --cyan: #39d2c0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  .container {
+    max-width: 800px;
+    width: 100%;
+  }
+
+  h1 {
+    font-size: 2.6em;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    text-align: center;
+    margin-bottom: 8px;
+    line-height: 1.2;
+  }
+
+  h1 .hl { color: var(--accent); }
+
+  .subtitle {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 1.15em;
+    margin-bottom: 48px;
+    line-height: 1.6;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 48px;
+  }
+
+  @media (max-width: 640px) {
+    .cards { grid-template-columns: 1fr; }
+    h1 { font-size: 1.8em; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    text-decoration: none;
+    color: var(--text);
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+
+  .card-icon {
+    font-size: 2em;
+    line-height: 1;
+  }
+
+  .card-title {
+    font-size: 1.2em;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .card-desc {
+    color: var(--text-dim);
+    font-size: 0.9em;
+    line-height: 1.6;
+  }
+
+  .card-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: 600;
+    width: fit-content;
+  }
+
+  .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .badge-green { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-purple { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .badge-orange { background: rgba(210,153,34,0.15); color: var(--orange); }
+
+  .footer {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.85em;
+    line-height: 1.8;
+  }
+
+  .footer a { color: var(--accent); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-value {
+    font-size: 1.8em;
+    font-weight: 800;
+    color: var(--accent);
+  }
+
+  .stat-label {
+    font-size: 0.8em;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Applying <span class="hl">NASA Engineering</span><br>to Software</h1>
+  <p class="subtitle">
+    Lessons from NASA, automotive, and safety-critical industries<br>
+    adapted for modern software teams
+  </p>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">180</div>
+      <div class="stat-label">Pages</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">9</div>
+      <div class="stat-label">Chapters</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">70+</div>
+      <div class="stat-label">Slides</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">10</div>
+      <div class="stat-label">Sections</div>
+    </div>
+  </div>
+
+  <div class="cards">
+
+    <a href="book.html" class="card">
+      <div class="card-icon">📖</div>
+      <span class="card-badge badge-blue">Reference Book</span>
+      <div class="card-title">The Complete Reference</div>
+      <div class="card-desc">
+        180-page reference covering SRS, FRET, MC/DC, Lustre, runtime monitoring, deployment safety, incident analysis, threat modeling, metrics, and adoption playbook.
+      </div>
+    </a>
+
+    <a href="mcdc_middleware_refactoring.html" class="card">
+      <div class="card-icon">🔧</div>
+      <span class="card-badge badge-green">Interactive Demo</span>
+      <div class="card-title">Real-World Example: API Gateway</div>
+      <div class="card-desc">
+        A production Go middleware refactored with Decide&rarr;Plan&rarr;Execute. MC/DC test tables, FRET requirements, Lustre verification, SRS hierarchy, ICD &mdash; all applied.
+      </div>
+    </a>
+
+    <a href="https://github.com/buger/nasa-presentation/blob/main/presentation.md" class="card">
+      <div class="card-icon">🎤</div>
+      <span class="card-badge badge-purple">Presentation</span>
+      <div class="card-title">Conference Slides (Marp)</div>
+      <div class="card-desc">
+        70+ slides covering the full story: from Voyager to your CI pipeline. Includes speaker notes. Built with Marp &mdash; clone the repo and run locally.
+      </div>
+    </a>
+
+    <a href="https://github.com/buger/nasa-presentation" class="card">
+      <div class="card-icon">💻</div>
+      <span class="card-badge badge-orange">Source</span>
+      <div class="card-title">GitHub Repository</div>
+      <div class="card-desc">
+        All source files, images, and build infrastructure. Clone, customize, and build your own PDF or presentation. Makefile included.
+      </div>
+    </a>
+
+  </div>
+
+  <div class="footer">
+    <strong>Topics covered:</strong> SRS &bull; FRET &bull; MC/DC &bull; Lustre &bull; Kind 2 &bull; Copilot Monitors &bull; ICD<br>
+    DO-178C &bull; ISO 26262 &bull; NPR 7150.2D &bull; IV&amp;V &bull; STPA &bull; AI Governance &bull; Swiss Cheese Model<br><br>
+    By <a href="https://github.com/buger">Leonid Bugaev</a> &bull;
+    <a href="https://github.com/buger/nasa-presentation">View on GitHub</a>
+  </div>
+</div>
+
+</body>
+</html>
