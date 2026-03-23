@@ -35,7 +35,6 @@ jobs:
             --toc-depth=3 \
             --number-sections \
             --css=book-style.css \
-            --embed-resources --standalone \
             --metadata title="Applying NASA, Automotive & Safety-Critical Engineering to Software" \
             --metadata author="Leonid Bugaev" \
             --metadata date="$(date +%Y-%m-%d)" \
